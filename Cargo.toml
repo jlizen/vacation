@@ -2,5 +2,13 @@
 name = "compute-heavy-tokio-executor"
 version = "0.1.0"
 edition = "2021"
+license = "MIT"
+repository = "https://github.com/jlizen/compute-heavy-tokio-executor"
+homepage = "https://github.com/jlizen/compute-heavy-tokio-executor"
+rust-version = "1.70"
+exclude = ["/.github", "/examples", "/scripts"]
+readme = "README.md"
+description = "Additional tokio executor patterns for use with compute-bounded, blocking futures."
+categories = ["asynchronous"]
 
 [dependencies]
