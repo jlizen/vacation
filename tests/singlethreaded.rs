@@ -1,4 +1,4 @@
-#![cfg(not(compute_heavy_tokio_multithreaded))]
+#![cfg(not(compute_heavy_tokio_executor_multithreaded))]
 
 #[cfg(test)]
 mod singlethreaded {
