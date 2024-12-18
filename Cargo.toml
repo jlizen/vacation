@@ -12,21 +12,10 @@ description = "Additional tokio executor patterns for use with compute-bounded, 
 categories = ["asynchronous"]
 
 [dependencies]
-tokio = { version = "1.0", features = ["rt"] }
-
-# Requires `--cfg compute_heavy_tokio_executor_multithreaded` to enable.
-[target.'cfg(compute_heavy_tokio_executor_multithreaded)'.dependencies]
-tokio = { version = "1.0", features = ["rt-multi-thread"], optional = true }
-libc = { version = "0.2.168", optional = true }
-num_cpus = { version = "1.0", optional = true }
-
-[package.metadata.docs.rs]
-all-features = true
-# enable unstable features in the documentation
-rustdoc-args = ["--cfg", "docsrs", "--cfg", "compute_heavy_tokio_executor_multithreaded"]
-# it's necessary to _also_ pass `--cfg compute_heavy_tokio_executor_multithreaded`
-# to rustc, or else dependencies will not be enabled, and the docs build will fail.
-rustc-args = ["--cfg", "compute_heavy_tokio_executor_multithreaded"]
+tokio = { version = "1.0", features = ["rt", "rt-multi-thread", "macros", "sync"]}
+libc = { version = "0.2.168"}
+num_cpus = { version = "1.0"}
 
 [lints.rust]
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(compute_heavy_tokio_executor-multithreaded)'] }
+# calling libraries might use this to enable
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(compute_heavy_tokio_executor)'] }
