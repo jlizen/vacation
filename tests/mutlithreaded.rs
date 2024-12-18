@@ -1,5 +1,5 @@
 #![allow(unexpected_cfgs)]
-#![cfg(compute_heavy_tokio_multithreaded)]
+#![cfg(compute_heavy_tokio_executor_multithreaded)]
 
 #[cfg(test)]
 mod multithreaded {
