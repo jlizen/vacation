@@ -1,9 +1,6 @@
 use std::{future::Future, pin::Pin};
 
-use tokio::{
-    select,
-    sync::mpsc::Sender,
-};
+use tokio::{select, sync::mpsc::Sender};
 
 use crate::{error::Error, ComputeHeavyFutureExecutor};
 

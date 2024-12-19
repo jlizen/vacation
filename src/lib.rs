@@ -27,26 +27,26 @@ use spawn_blocking::SpawnBlockingExecutor;
 // tokio, explain how calling libraries can expose it as a toggle via `cfg(compute_heavy_executor)`
 
 /// Awaits the future in the current context. This is effectively a non-op wrapper
-/// that adds no special handling for the future. This is the default if 
+/// that adds no special handling for the future. This is the default if
 /// the #[cfg(feature = "tokio")] rust flag is disabled.
 ///
 /// # Panics
-/// Panics if compute-heavy executor strategy is initialized more than once, across all strategies. 
-/// 
+/// Panics if compute-heavy executor strategy is initialized more than once, across all strategies.
+///
 /// # Example
-/// 
+///
 /// ```
 /// use compute_heavy_future_executor::initialize_current_context_strategy;
 /// use compute_heavy_future_executor::spawn_compute_heavy_future;
-/// 
+///
 /// # async fn run() {
 /// initialize_current_context_strategy();
-/// 
-/// let future = async { 
+///
+/// let future = async {
 ///     std::thread::sleep(std::time::Duration::from_millis(50));
 ///     5
-///  }; 
-/// 
+///  };
+///
 /// let res = spawn_compute_heavy_future(future).await.unwrap();
 /// assert_eq!(res, 5);
 /// # }
@@ -61,27 +61,27 @@ pub fn initialize_current_context_strategy() {
 
 /// Executes futures by blocking on them inside the tokio blocking threadpool. By default, tokio will spin up a blocking thread
 /// per task, which may be more than your count of CPU cores, depending on runtime config.
-/// 
+///
 /// If you expect many concurrent cpu-heavy futures, consider limiting your blocking tokio threadpool size.
 /// Or, you can use a heavier weight strategy like [`initialize_secondary_tokio_runtime_strategy`].
 ///
 /// # Panics
-/// Panics if compute-heavy executor strategy is initialized more than once, across all strategies. 
+/// Panics if compute-heavy executor strategy is initialized more than once, across all strategies.
 ///
 /// # Example
-/// 
+///
 /// ```
 /// use compute_heavy_future_executor::initialize_spawn_blocking_strategy;
 /// use compute_heavy_future_executor::spawn_compute_heavy_future;
-/// 
+///
 /// # async fn run() {
 /// initialize_spawn_blocking_strategy();
-/// 
-/// let future = async { 
+///
+/// let future = async {
 ///     std::thread::sleep(std::time::Duration::from_millis(50));
 ///     5
-///  }; 
-/// 
+///  };
+///
 /// let res = spawn_compute_heavy_future(future).await.unwrap();
 /// assert_eq!(res, 5);
 /// # }
@@ -97,30 +97,30 @@ pub fn initialize_spawn_blocking_strategy() {
 
 /// Executes compute-heavy future by calling task::block_in_place on the current worker,
 /// and evicts other tasks on same worker thread to avoid blocking them.
-/// 
+///
 /// Can starve your executor of worker threads if called with too many
 /// concurrent cpu-heavy futures.
-/// 
+///
 /// If you expect many concurrent cpu-heavy futures, consider a
 /// heavier weight strategy like [`initialize_secondary_tokio_runtime_strategy`].
 ///
 /// # Panics
-/// Panics if compute-heavy executor strategy is initialized more than once, across all strategies. 
-/// 
+/// Panics if compute-heavy executor strategy is initialized more than once, across all strategies.
+///
 /// # Example
-/// 
+///
 /// ```
 /// use compute_heavy_future_executor::initialize_block_in_place_strategy;
 /// use compute_heavy_future_executor::spawn_compute_heavy_future;
-/// 
+///
 /// # async fn run() {
 /// initialize_block_in_place_strategy();
-/// 
-/// let future = async { 
+///
+/// let future = async {
 ///     std::thread::sleep(std::time::Duration::from_millis(50));
 ///     5
-///  }; 
-/// 
+///  };
+///
 /// let res = spawn_compute_heavy_future(future).await.unwrap();
 /// assert_eq!(res, 5);
 /// # }
@@ -139,22 +139,22 @@ pub fn initialize_block_in_place_strategy() {
 /// Use secondary_executor_config() to customize the defaults.
 ///
 /// # Panics
-/// Panics if compute-heavy executor strategy is initialized more than once, across all strategies. 
-/// 
+/// Panics if compute-heavy executor strategy is initialized more than once, across all strategies.
+///
 /// # Example
-/// 
+///
 /// ```
 /// use compute_heavy_future_executor::initialize_secondary_tokio_runtime_strategy;
 /// use compute_heavy_future_executor::spawn_compute_heavy_future;
-/// 
+///
 /// # async fn run() {
 /// initialize_secondary_tokio_runtime_strategy();
-/// 
-/// let future = async { 
+///
+/// let future = async {
 ///     std::thread::sleep(std::time::Duration::from_millis(50));
 ///     5
-///  }; 
-/// 
+///  };
+///
 /// let res = spawn_compute_heavy_future(future).await.unwrap();
 /// assert_eq!(res, 5);
 /// # }
@@ -170,29 +170,29 @@ pub fn initialize_secondary_tokio_runtime_strategy() {
 }
 
 /// Creates a secondary tokio runtime to delegate compute-heavy futures to via channels.
-/// 
+///
 /// Allows custom thread niceness of -20..=19 , and any thread count. If either value is omitted,
 /// it will fall back to the default of 10 niceness and/or count of threads = cpu core count.
 ///
 /// # Panics
 /// Panics if niceness provided outside of -20..=19 bounds.
-/// 
-/// Panics if compute-heavy executor strategy is initialized more than once, across all strategies. 
-/// 
+///
+/// Panics if compute-heavy executor strategy is initialized more than once, across all strategies.
+///
 /// # Example
-/// 
+///
 /// ```
 /// use compute_heavy_future_executor::initialize_secondary_tokio_runtime_strategy_and_config;
 /// use compute_heavy_future_executor::spawn_compute_heavy_future;
-/// 
+///
 /// # async fn run() {
 /// initialize_secondary_tokio_runtime_strategy_and_config(Some(5), Some(10));
-/// 
-/// let future = async { 
+///
+/// let future = async {
 ///     std::thread::sleep(std::time::Duration::from_millis(50));
 ///     5
-///  }; 
-/// 
+///  };
+///
 /// let res = spawn_compute_heavy_future(future).await.unwrap();
 /// assert_eq!(res, 5);
 /// # }
@@ -214,7 +214,7 @@ pub fn initialize_secondary_tokio_runtime_strategy_and_config(
 
 /// Accepts a closure that will process a type-erased future and return its results,
 /// also type erased.
-/// 
+///
 /// Intended for use to allow alternate executors besides tokio, or to allow
 /// additional wrapper logic compared to the inbuilt strategies like the secondary tokio runtime.
 ///
@@ -222,15 +222,15 @@ pub fn initialize_secondary_tokio_runtime_strategy_and_config(
 /// Panics if passed a closure that resolves type-erased futures to a different output
 /// type than the future's output type.
 ///
-/// Panics if compute-heavy executor strategy is initialized more than once, across all strategies. 
-/// 
+/// Panics if compute-heavy executor strategy is initialized more than once, across all strategies.
+///
 /// # Example
-/// 
+///
 /// ```
 /// use compute_heavy_future_executor::initialize_custom_executor_strategy;
 /// use compute_heavy_future_executor::spawn_compute_heavy_future;
 /// use compute_heavy_future_executor::CustomExecutorClosure;
-/// 
+///
 /// // this isn't actually a good strategy, to be clear
 /// # async fn run() {
 /// let closure: CustomExecutorClosure = Box::new(|fut| {
@@ -241,18 +241,18 @@ pub fn initialize_secondary_tokio_runtime_strategy_and_config(
 ///         }
 ///     )
 /// });
-/// 
+///
 /// initialize_custom_executor_strategy(closure).await;
-/// 
-/// let future = async { 
+///
+/// let future = async {
 ///     std::thread::sleep(std::time::Duration::from_millis(50));
 ///     5
-///  }; 
-/// 
+///  };
+///
 /// let res = spawn_compute_heavy_future(future).await.unwrap();
 /// assert_eq!(res, 5);
 /// # }
-/// 
+///
 /// ```
 pub async fn initialize_custom_executor_strategy(closure: CustomExecutorClosure) {
     log::info!("initializing compute-heavy executor with custom strategy");
@@ -291,38 +291,38 @@ enum ExecutorStrategy {
 }
 
 /// Spawn a future to the configured compute-heavy executor and wait on its output.
-/// 
+///
 /// # Strategy selection
-/// 
+///
 /// If no strategy is configured, this library will fall back to the following defaults:
 /// - no tokio cfg flag - current context
 /// - tokio, in multi-threaded runtime flavor - block in place
 /// - tokio, all other flavors - spawn blocking
-/// 
+///
 /// You can override these defaults by initializing a strategy:
 /// - [`initialize_current_context_strategy`],
 /// - [`initialize_spawn_blocking_strategy`]
 /// - [`initialize_block_in_place_strategy`]
 /// - [`initialize_secondary_tokio_runtime_strategy`]
 /// - [`initialize_secondary_tokio_runtime_strategy_and_config`]
-/// 
-/// # Example 
-/// 
+///
+/// # Example
+///
 /// ```
 /// # async fn run() {
 /// use compute_heavy_future_executor::spawn_compute_heavy_future;
-/// 
-/// let future = async { 
+///
+/// let future = async {
 ///     std::thread::sleep(std::time::Duration::from_millis(50));
 ///     5
-///  }; 
-/// 
+///  };
+///
 /// let res = spawn_compute_heavy_future(future).await.unwrap();
 /// assert_eq!(res, 5);
 /// # }
-/// 
+///
 /// ```
-/// 
+///
 pub async fn spawn_compute_heavy_future<F, R>(fut: F) -> Result<R, Error>
 where
     F: Future<Output = R> + Send + 'static,
@@ -343,12 +343,12 @@ where
                         return ExecutorStrategy::SpawnBlocking(SpawnBlockingExecutor {})
                     },
                 };
-                
+
                 #[cfg(not(feature = "tokio"))]
                 {
                     log::warn!("spawn_compute_heavy_future called without setting an explicit executor strategy, setting to \
                     current context due to no `cfg(compute_heavy_executor_tokio)`. This is a non-op and probably not what you want.");
-                    ExecutorStrategy::CurrentContext(CurrentContextExecutor {})    
+                    ExecutorStrategy::CurrentContext(CurrentContextExecutor {})
                 }
         });
     match executor {

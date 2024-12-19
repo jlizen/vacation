@@ -4,7 +4,8 @@ use crate::{error::Error, ComputeHeavyFutureExecutor};
 
 /// The input future for a custom executor closure.
 /// This is the regular future, with its output type erased to Any.
-pub type AnyWrappedFuture = Pin<Box<dyn Future<Output = Box<dyn Any + Send + 'static>> + Send + 'static>>;
+pub type AnyWrappedFuture =
+    Pin<Box<dyn Future<Output = Box<dyn Any + Send + 'static>> + Send + 'static>>;
 
 /// A closure that accepts a type-erased input future and returns a future that resolves to
 /// either Ok(<type erased input future's output>) or Err(<boxed error representing executor errors>)
@@ -12,7 +13,12 @@ pub type CustomExecutorClosure = Box<
     dyn Fn(
             AnyWrappedFuture,
         ) -> Box<
-            dyn Future<Output = Result<Box<dyn Any + Send + 'static>, Box<dyn std::error::Error + Send + Sync>>>,
+            dyn Future<
+                Output = Result<
+                    Box<dyn Any + Send + 'static>,
+                    Box<dyn std::error::Error + Send + Sync>,
+                >,
+            >,
         > + Send
         + Sync,
 >;
@@ -57,15 +63,14 @@ impl ComputeHeavyFutureExecutor for CustomExecutor {
         match executor_result {
             Ok(future_result) => {
                 if let Ok(value) = future_result.downcast::<O>() {
-                Ok(*value)
+                    Ok(*value)
                 } else {
                     // we would love to include the output that we actually received, but we don't want
                     // to force display/debug bounds onto the future output
                     Err(Error::CustomExecutorOutputTypeMismatch)
                 }
-            },
-            Err(err) => Err(Error::BoxError(err))
-
+            }
+            Err(err) => Err(Error::BoxError(err)),
         }
     }
 }

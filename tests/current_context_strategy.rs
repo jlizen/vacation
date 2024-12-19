@@ -1,4 +1,6 @@
-use compute_heavy_future_executor::{initialize_current_context_strategy, spawn_compute_heavy_future};
+use compute_heavy_future_executor::{
+    initialize_current_context_strategy, spawn_compute_heavy_future,
+};
 
 #[tokio::test]
 async fn current_context_strategy() {
