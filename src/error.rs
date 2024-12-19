@@ -6,7 +6,7 @@ pub enum Error {
     CustomExecutorOutputTypeMismatch,
     #[cfg(feature = "tokio")]
     JoinError(String),
-    BoxError(Box<dyn std::error::Error + Send + Sync>)
+    BoxError(Box<dyn std::error::Error + Send + Sync>),
 }
 
 impl fmt::Display for Error {
