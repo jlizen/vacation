@@ -1,9 +1,7 @@
 #[cfg(not(feature = "tokio"))]
 #[tokio::test]
 async fn default_to_current_context_non_tokio() {
-    use compute_heavy_future_executor::{
-        initialize_current_context_strategy, spawn_compute_heavy_future,
-    };
+    use compute_heavy_future_executor::spawn_compute_heavy_future;
 
     let future = async { 5 };
 
