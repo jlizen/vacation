@@ -1,30 +1,28 @@
-#[cfg(feature = "tokio")]
+#[cfg(feature = "tokio_multithreaded")]
 mod block_in_place;
 mod current_context;
 mod custom_executor;
 mod error;
-#[cfg(feature = "tokio")]
+#[cfg(feature = "secondary_tokio_runtime")]
 mod secondary_tokio_runtime;
 #[cfg(feature = "tokio")]
 mod spawn_blocking;
 
-pub use custom_executor::AnyWrappedFuture;
 pub use custom_executor::CustomExecutorClosure;
 
 use std::{future::Future, sync::OnceLock};
 
-#[cfg(feature = "tokio")]
+#[cfg(feature = "tokio_multithreaded")]
 use block_in_place::BlockInPlaceExecutor;
 use current_context::CurrentContextExecutor;
 use custom_executor::CustomExecutor;
 use error::Error;
-#[cfg(feature = "tokio")]
+#[cfg(feature = "secondary_tokio_runtime")]
 use secondary_tokio_runtime::SecondaryTokioRuntimeExecutor;
 #[cfg(feature = "tokio")]
 use spawn_blocking::SpawnBlockingExecutor;
 
-// TODO: module docs, explain the point of this library, explain how to use `cfg(compute_heavy_executor_tokio)` to enable
-// tokio, explain how calling libraries can expose it as a toggle via `cfg(compute_heavy_executor)`
+// TODO: module docs, explain the point of this library, give some samples
 
 /// Awaits the future in the current context. This is effectively a non-op wrapper
 /// that adds no special handling for the future. This is the default if
@@ -125,7 +123,7 @@ pub fn initialize_spawn_blocking_strategy() {
 /// assert_eq!(res, 5);
 /// # }
 /// ```
-#[cfg(feature = "tokio")]
+#[cfg(feature = "tokio_multithreaded")]
 pub fn initialize_block_in_place_strategy() {
     log::info!("initializing compute-heavy executor with block in place strategy");
     let strategy = ExecutorStrategy::BlockInPlace(BlockInPlaceExecutor {});
@@ -197,7 +195,7 @@ pub fn initialize_secondary_tokio_runtime_strategy() {
 /// assert_eq!(res, 5);
 /// # }
 /// ```
-#[cfg(feature = "tokio")]
+#[cfg(feature = "secondary_tokio_runtime")]
 pub fn initialize_secondary_tokio_runtime_strategy_and_config(
     niceness: Option<i8>,
     thread_count: Option<usize>,
@@ -212,15 +210,11 @@ pub fn initialize_secondary_tokio_runtime_strategy_and_config(
         .unwrap_or_else(|_| panic!("Compute heavy future executor can only be initialized once"))
 }
 
-/// Accepts a closure that will process a type-erased future and return its results,
-/// also type erased.
-///
-/// Intended for use to allow alternate executors besides tokio, or to allow
-/// additional wrapper logic compared to the inbuilt strategies like the secondary tokio runtime.
+/// Accepts a closure that will poll an arbitrary feature to completion.
+/// 
+/// Intended for injecting arbitrary runtimes/strategies or customizing existing ones.
 ///
 /// # Panics
-/// Panics if passed a closure that resolves type-erased futures to a different output
-/// type than the future's output type.
 ///
 /// Panics if compute-heavy executor strategy is initialized more than once, across all strategies.
 ///
@@ -242,7 +236,7 @@ pub fn initialize_secondary_tokio_runtime_strategy_and_config(
 ///     )
 /// });
 ///
-/// initialize_custom_executor_strategy(closure).await;
+/// initialize_custom_executor_strategy(closure);
 ///
 /// let future = async {
 ///     std::thread::sleep(std::time::Duration::from_millis(50));
@@ -254,9 +248,9 @@ pub fn initialize_secondary_tokio_runtime_strategy_and_config(
 /// # }
 ///
 /// ```
-pub async fn initialize_custom_executor_strategy(closure: CustomExecutorClosure) {
+pub fn initialize_custom_executor_strategy(closure: CustomExecutorClosure) {
     log::info!("initializing compute-heavy executor with custom strategy");
-    let strategy = ExecutorStrategy::CustomExecutor(CustomExecutor::new(closure).await);
+    let strategy = ExecutorStrategy::CustomExecutor(CustomExecutor { closure });
     COMPUTE_HEAVY_FUTURE_EXECUTOR_STRATEGY
         .set(strategy)
         .unwrap_or_else(|_| panic!("Compute heavy future executor can only be initialized once"))
@@ -354,11 +348,11 @@ where
     match executor {
         ExecutorStrategy::CurrentContext(executor) => executor.execute(fut).await,
         ExecutorStrategy::CustomExecutor(executor) => executor.execute(fut).await,
-        #[cfg(feature = "tokio")]
+        #[cfg(feature = "tokio_multithreaded")]
         ExecutorStrategy::BlockInPlace(executor) => executor.execute(fut).await,
         #[cfg(feature = "tokio")]
         ExecutorStrategy::SpawnBlocking(executor) => executor.execute(fut).await,
-        #[cfg(feature = "tokio")]
+        #[cfg(feature = "secondary_tokio_runtime")]
         ExecutorStrategy::SecondaryTokioRuntime(executor) => executor.execute(fut).await,
     }
 }

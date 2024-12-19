@@ -95,9 +95,7 @@ impl ComputeHeavyFutureExecutor for SecondaryTokioRuntimeExecutor {
         }
 
         response_rx.await.map_err(|err| {
-            Error::JoinError(format!(
-                "error awaiting response from secondary tokio runtime: {err}"
-            ))
+            Error::RecvError(err)
         })
     }
 }

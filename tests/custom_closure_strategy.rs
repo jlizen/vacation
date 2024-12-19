@@ -11,7 +11,7 @@ async fn custom_strategy_legal_closure() {
         })
     });
 
-    initialize_custom_executor_strategy(closure).await;
+    initialize_custom_executor_strategy(closure);
 
     let future = async { 5 };
 
