@@ -1,9 +1,8 @@
 use std::{future::Future, pin::Pin};
 
 use tokio::{
-    runtime::Handle,
     select,
-    sync::mpsc::{error::TrySendError, Sender},
+    sync::mpsc::Sender,
 };
 
 use crate::{error::Error, ComputeHeavyFutureExecutor};
@@ -82,6 +81,7 @@ impl ComputeHeavyFutureExecutor for SecondaryTokioRuntimeExecutor {
             select!(
                 _ = response_tx.closed() => {
                     // receiver already dropped, don't need to do anything
+                    // cancel the background future
                 }
                 result = fut => {
                     // if this fails, the receiver already dropped, so we don't need to do anything
@@ -90,21 +90,10 @@ impl ComputeHeavyFutureExecutor for SecondaryTokioRuntimeExecutor {
             )
         });
 
-        match self.tx.try_send(Box::pin(background_future)) {
+        match self.tx.send(Box::pin(background_future)).await {
             Ok(_) => (),
-            Err(TrySendError::Closed(_)) => {
-                panic!("secondary compute-heavy runtime channel is closed")
-            }
-            Err(TrySendError::Full(msg)) => {
-                log::warn!(
-                    "secondary compute-heavy runtime channel is full, task spawning loop delayed"
-                );
-                let tx = self.tx.clone();
-                Handle::current().spawn(async move {
-                    tx.send(msg)
-                        .await
-                        .expect("secondary compute-heavy runtime channel is closed")
-                });
+            Err(err) => {
+                panic!("secondary compute-heavy runtime channel cannot be reached: {err}")
             }
         }
 
