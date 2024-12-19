@@ -11,7 +11,7 @@ async fn custom_strategy_legal_closure_tokio_spawn() {
             handle.await.map_err(|err| err.into())
         })
     });
-    initialize_custom_executor_strategy(closure).await;
+    initialize_custom_executor_strategy(closure);
 
     let future = async { 5 };
 

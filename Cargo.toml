@@ -12,13 +12,15 @@ description = "Additional executor patterns for use handling compute-bounded, bl
 categories = ["asynchronous"]
 
 [features]
-tokio = ["dep:tokio", "dep:libc", "dep:num_cpus"]
+tokio = ["tokio/rt"]
+tokio_multithreaded = ["tokio", "tokio/rt-multi-thread"]
+secondary_tokio_runtime = ["tokio_multithreaded", "dep:libc", "dep:num_cpus"]
 
 [dependencies]
 libc = { version = "0.2.168", optional = true }
 log = "0.4.22"
 num_cpus = { version = "1.0", optional = true }
-tokio = { version = "1.0", features = ["rt", "rt-multi-thread", "macros", "sync"], optional = true }
+tokio = { version = "1.0", features = ["macros", "sync"] }
 
 [dev-dependencies]
 tokio = { version = "1.0", features = ["full"]}

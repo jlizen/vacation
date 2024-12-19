@@ -12,6 +12,6 @@ impl ComputeHeavyFutureExecutor for SpawnBlockingExecutor {
             tokio::runtime::Handle::current().block_on(async { fut.await })
         })
         .await
-        .map_err(|err| Error::JoinError(format!("error awaiting spawn_blocking handle: {err}")))
+        .map_err(|err| Error::JoinError(err))
     }
 }
