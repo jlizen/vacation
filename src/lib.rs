@@ -329,26 +329,26 @@ where
     R: Send + 'static,
 {
     let executor = COMPUTE_HEAVY_FUTURE_EXECUTOR_STRATEGY
-        .get_or_init(|| {
+        .get().unwrap_or_else(|| {
                 #[cfg(feature = "tokio")]
                 match tokio::runtime::Handle::current().runtime_flavor() {
                     tokio::runtime::RuntimeFlavor::MultiThread => {
-                        log::info!("spawn_compute_heavy_future called without setting an explicit executor strategy, \
+                        log::trace!("spawn_compute_heavy_future called without setting an explicit executor strategy, \
                         setting to BlockInPlace due to tokio multithreaded runtime context");
-                        return ExecutorStrategy::BlockInPlace(BlockInPlaceExecutor {})
+                        &ExecutorStrategy::BlockInPlace(BlockInPlaceExecutor {})
                     },
                     _ => {
-                        log::info!("spawn_compute_heavy_future called without setting an explicit executor strategy, \
+                        log::trace!("spawn_compute_heavy_future called without setting an explicit executor strategy, \
                         setting to SpawnBlocking");
-                        return ExecutorStrategy::SpawnBlocking(SpawnBlockingExecutor {})
+                        &ExecutorStrategy::SpawnBlocking(SpawnBlockingExecutor {})
                     },
-                };
+                }
 
                 #[cfg(not(feature = "tokio"))]
                 {
-                    log::warn!("spawn_compute_heavy_future called without setting an explicit executor strategy, setting to \
+                    log::debug!("spawn_compute_heavy_future called without setting an explicit executor strategy, setting to \
                     current context due to no `cfg(compute_heavy_executor_tokio)`. This is a non-op and probably not what you want.");
-                    ExecutorStrategy::CurrentContext(CurrentContextExecutor {})
+                    &ExecutorStrategy::CurrentContext(CurrentContextExecutor {})
                 }
         });
     match executor {
