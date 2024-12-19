@@ -1,11 +1,11 @@
-#[cfg(compute_heavy_executor_tokio)]
+#[cfg(feature = "tokio")]
 mod block_in_place;
 mod current_context;
 mod custom_executor;
 mod error;
-#[cfg(compute_heavy_executor_tokio)]
+#[cfg(feature = "tokio")]
 mod secondary_tokio_runtime;
-#[cfg(compute_heavy_executor_tokio)]
+#[cfg(feature = "tokio")]
 mod spawn_blocking;
 
 pub use custom_executor::AnyWrappedFuture;
@@ -13,14 +13,14 @@ pub use custom_executor::CustomExecutorClosure;
 
 use std::{future::Future, sync::OnceLock};
 
-#[cfg(compute_heavy_executor_tokio)]
+#[cfg(feature = "tokio")]
 use block_in_place::BlockInPlaceExecutor;
 use current_context::CurrentContextExecutor;
 use custom_executor::CustomExecutor;
 use error::Error;
-#[cfg(compute_heavy_executor_tokio)]
+#[cfg(feature = "tokio")]
 use secondary_tokio_runtime::SecondaryTokioRuntimeExecutor;
-#[cfg(compute_heavy_executor_tokio)]
+#[cfg(feature = "tokio")]
 use spawn_blocking::SpawnBlockingExecutor;
 
 // TODO: module docs, explain the point of this library, explain how to use `cfg(compute_heavy_executor_tokio)` to enable
@@ -28,7 +28,7 @@ use spawn_blocking::SpawnBlockingExecutor;
 
 /// Awaits the future in the current context. This is effectively a non-op wrapper
 /// that adds no special handling for the future. This is the default if 
-/// the #[cfg(compute_heavy_executor_tokio)] rust flag is disabled.
+/// the #[cfg(feature = "tokio")] rust flag is disabled.
 ///
 /// # Panics
 /// Panics if compute-heavy executor strategy is initialized more than once, across all strategies. 
@@ -86,7 +86,7 @@ pub fn initialize_current_context_strategy() {
 /// assert_eq!(res, 5);
 /// # }
 /// ```
-#[cfg(compute_heavy_executor_tokio)]
+#[cfg(feature = "tokio")]
 pub fn initialize_spawn_blocking_strategy() {
     log::info!("initializing compute-heavy executor with spawn blocking strategy");
     let strategy = ExecutorStrategy::SpawnBlocking(SpawnBlockingExecutor {});
@@ -125,7 +125,7 @@ pub fn initialize_spawn_blocking_strategy() {
 /// assert_eq!(res, 5);
 /// # }
 /// ```
-#[cfg(compute_heavy_executor_tokio)]
+#[cfg(feature = "tokio")]
 pub fn initialize_block_in_place_strategy() {
     log::info!("initializing compute-heavy executor with block in place strategy");
     let strategy = ExecutorStrategy::BlockInPlace(BlockInPlaceExecutor {});
@@ -159,7 +159,7 @@ pub fn initialize_block_in_place_strategy() {
 /// assert_eq!(res, 5);
 /// # }
 /// ```
-#[cfg(compute_heavy_executor_tokio)]
+#[cfg(feature = "tokio")]
 pub fn initialize_secondary_tokio_runtime_strategy() {
     log::info!("initializing compute-heavy executor with secondary tokio runtime strategy");
     let strategy =
@@ -197,7 +197,7 @@ pub fn initialize_secondary_tokio_runtime_strategy() {
 /// assert_eq!(res, 5);
 /// # }
 /// ```
-#[cfg(compute_heavy_executor_tokio)]
+#[cfg(feature = "tokio")]
 pub fn initialize_secondary_tokio_runtime_strategy_and_config(
     niceness: Option<i8>,
     thread_count: Option<usize>,
@@ -279,12 +279,12 @@ enum ExecutorStrategy {
     /// User-provided closure
     CustomExecutor(CustomExecutor),
     /// tokio task::spawn_blocking
-    #[cfg(compute_heavy_executor_tokio)]
+    #[cfg(feature = "tokio")]
     SpawnBlocking(SpawnBlockingExecutor),
     /// tokio task::block_in_place
-    #[cfg(compute_heavy_executor_tokio)]
+    #[cfg(feature = "tokio")]
     BlockInPlace(BlockInPlaceExecutor),
-    #[cfg(compute_heavy_executor_tokio)]
+    #[cfg(feature = "tokio")]
     /// Spin up a second, lower-priority tokio runtime
     /// that communicates via channels
     SecondaryTokioRuntime(SecondaryTokioRuntimeExecutor),
@@ -330,7 +330,7 @@ where
 {
     let executor = COMPUTE_HEAVY_FUTURE_EXECUTOR_STRATEGY
         .get_or_init(|| {
-                #[cfg(compute_heavy_executor_tokio)]
+                #[cfg(feature = "tokio")]
                 match tokio::runtime::Handle::current().runtime_flavor() {
                     tokio::runtime::RuntimeFlavor::MultiThread => {
                         log::info!("spawn_compute_heavy_future called without setting an explicit executor strategy, \
@@ -343,8 +343,8 @@ where
                         return ExecutorStrategy::SpawnBlocking(SpawnBlockingExecutor {})
                     },
                 };
-
-                #[allow(unreachable_code)]
+                
+                #[cfg(not(feature = "tokio"))]
                 {
                     log::warn!("spawn_compute_heavy_future called without setting an explicit executor strategy, setting to \
                     current context due to no `cfg(compute_heavy_executor_tokio)`. This is a non-op and probably not what you want.");
@@ -354,11 +354,11 @@ where
     match executor {
         ExecutorStrategy::CurrentContext(executor) => executor.execute(fut).await,
         ExecutorStrategy::CustomExecutor(executor) => executor.execute(fut).await,
-        #[cfg(compute_heavy_executor_tokio)]
+        #[cfg(feature = "tokio")]
         ExecutorStrategy::BlockInPlace(executor) => executor.execute(fut).await,
-        #[cfg(compute_heavy_executor_tokio)]
+        #[cfg(feature = "tokio")]
         ExecutorStrategy::SpawnBlocking(executor) => executor.execute(fut).await,
-        #[cfg(compute_heavy_executor_tokio)]
+        #[cfg(feature = "tokio")]
         ExecutorStrategy::SecondaryTokioRuntime(executor) => executor.execute(fut).await,
     }
 }
@@ -370,7 +370,7 @@ mod tests {
 
     use super::*;
 
-    #[cfg(not(compute_heavy_executor_tokio))]
+    #[cfg(not(feature = "tokio"))]
     #[tokio::test]
     async fn default_to_current_context_non_tokio() {
         let future = async { 5 };
@@ -381,7 +381,7 @@ mod tests {
         assert!(matches!(COMPUTE_HEAVY_FUTURE_EXECUTOR_STRATEGY.get(), Some(&ExecutorStrategy::CurrentContext(..))));
     }
 
-    #[cfg(compute_heavy_executor_tokio)]
+    #[cfg(feature = "tokio")]
     #[tokio::test]
     async fn default_to_current_context_tokio_single_threaded() {
         // this is a tokio test but we haven't enabled the tokio config flag
@@ -394,7 +394,7 @@ mod tests {
         assert!(matches!(COMPUTE_HEAVY_FUTURE_EXECUTOR_STRATEGY.get(), Some(&ExecutorStrategy::SpawnBlocking(..))));
     }
 
-    #[cfg(compute_heavy_executor_tokio)]
+    #[cfg(feature = "tokio")]
     #[tokio::test(flavor = "multi_thread")]
     async fn default_to_current_context_tokio_multi_threaded() {
         let future = async { 5 };
@@ -436,7 +436,7 @@ mod tests {
         assert!(matches!(COMPUTE_HEAVY_FUTURE_EXECUTOR_STRATEGY.get(), Some(&ExecutorStrategy::CustomExecutor(..))));
     }
 
-    #[cfg(compute_heavy_executor_tokio)]
+    #[cfg(feature = "tokio")]
     #[tokio::test]
     async fn custom_strategy_legal_closure_tokio_spawn() {
         let closure: CustomExecutorClosure = Box::new(|fut| {
@@ -470,7 +470,7 @@ mod tests {
         initialize_custom_executor_strategy(closure).await;
     }
 
-    #[cfg(compute_heavy_executor_tokio)]
+    #[cfg(feature = "tokio")]
     #[tokio::test]
     async fn spawn_blocking_strategy() {
         initialize_spawn_blocking_strategy();
@@ -483,7 +483,7 @@ mod tests {
         assert!(matches!(COMPUTE_HEAVY_FUTURE_EXECUTOR_STRATEGY.get(), Some(&ExecutorStrategy::SpawnBlocking(..))));
     }
 
-    #[cfg(compute_heavy_executor_tokio)]
+    #[cfg(feature = "tokio")]
     #[tokio::test(flavor = "multi_thread")]
     async fn block_in_place_strategy() {
         initialize_block_in_place_strategy();
@@ -496,7 +496,7 @@ mod tests {
         assert!(matches!(COMPUTE_HEAVY_FUTURE_EXECUTOR_STRATEGY.get(), Some(&ExecutorStrategy::BlockInPlace(..))));
     }
 
-    #[cfg(compute_heavy_executor_tokio)]
+    #[cfg(feature = "tokio")]
     #[tokio::test]
     async fn secondary_tokio_runtime_strategy() {
         initialize_secondary_tokio_runtime_strategy();
@@ -509,7 +509,7 @@ mod tests {
         assert!(matches!(COMPUTE_HEAVY_FUTURE_EXECUTOR_STRATEGY.get(), Some(&ExecutorStrategy::SecondaryTokioRuntime(..))));
     }
 
-    #[cfg(compute_heavy_executor_tokio)]
+    #[cfg(feature = "tokio")]
     #[tokio::test]
     async fn secondary_tokio_runtime_strategy_allowed_config() {
         initialize_secondary_tokio_runtime_strategy_and_config(Some(5), Some(50));
@@ -522,7 +522,7 @@ mod tests {
         assert!(matches!(COMPUTE_HEAVY_FUTURE_EXECUTOR_STRATEGY.get(), Some(&ExecutorStrategy::SecondaryTokioRuntime(..))));
     }
 
-    #[cfg(compute_heavy_executor_tokio)]
+    #[cfg(feature = "tokio")]
     #[tokio::test]
     #[should_panic]
     async fn secondary_tokio_runtime_strategy_disallowed_config() {

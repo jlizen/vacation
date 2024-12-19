@@ -11,26 +11,17 @@ readme = "README.md"
 description = "Additional executor patterns for use handling compute-bounded, blocking futures."
 categories = ["asynchronous"]
 
+[features]
+tokio = ["dep:tokio", "dep:libc", "dep:num_cpus"]
+
 [dependencies]
+libc = { version = "0.2.168", optional = true }
 log = "0.4.22"
-
-# Requires `--cfg compute_heavy_executor_tokio` to enable.
-[target.'cfg(compute_heavy_executor_tokio)'.dependencies]
-tokio = { version = "1.0", features = ["rt", "rt-multi-thread", "macros", "sync"]}
-libc = { version = "0.2.168"}
-num_cpus = { version = "1.0"}
-
-[package.metadata.docs.rs]
-# enable tokio conditional compilation in the documentation
-rustdoc-args = ["--cfg", "compute_heavy_executor_tokio"]
-# it's necessary to _also_ pass `--cfg compute_heavy_executor_tokio`
-# to rustc, or else dependencies will not be enabled, and the docs build will fail.
-rustc-args = ["--cfg", "compute_heavy_executor_tokio"]
+num_cpus = { version = "1.0", optional = true }
+tokio = { version = "1.0", features = ["rt", "rt-multi-thread", "macros", "sync"], optional = true }
 
 [dev-dependencies]
 tokio = { version = "1.0", features = ["full"]}
 
-[lints.rust]
-# calling libraries can use the convention of `cfg(compute_heavy_executor)` to enable usage of this crate
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(compute_heavy_executor)', 'cfg(compute_heavy_executor_tokio)'] }
-
+[package.metadata.docs.rs]
+all-features = true
