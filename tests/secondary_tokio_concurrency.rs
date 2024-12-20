@@ -1,10 +1,12 @@
 #[cfg(feature = "secondary_tokio_runtime")]
 #[tokio::test]
 async fn secondary_tokio_runtime_concurrency() {
+    use std::time::Duration;
+
     use compute_heavy_future_executor::{
-        global_strategy, global_strategy_builder, spawn_compute_heavy_future, CurrentStrategy,
-        ExecutorStrategy,
+        global_strategy_builder, spawn_compute_heavy_future,
     };
+    use futures_util::future::join_all;
 
     global_strategy_builder()
         .unwrap()
