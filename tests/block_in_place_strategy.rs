@@ -1,11 +1,12 @@
 #[cfg(feature = "tokio")]
 #[tokio::test(flavor = "multi_thread")]
 async fn block_in_place_strategy() {
-    use compute_heavy_future_executor::{
-        initialize_block_in_place_strategy, spawn_compute_heavy_future,
-    };
+    use compute_heavy_future_executor::{global_strategy, spawn_compute_heavy_future};
 
-    initialize_block_in_place_strategy();
+    global_strategy()
+        .unwrap()
+        .initialize_block_in_place()
+        .unwrap();
 
     let future = async { 5 };
 

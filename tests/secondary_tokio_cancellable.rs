@@ -3,18 +3,21 @@
 async fn secondary_tokio_runtime_strategy_cancel_safe() {
     use std::time::Duration;
 
-    use compute_heavy_future_executor::{
-        initialize_secondary_tokio_runtime_strategy, spawn_compute_heavy_future,
-    };
+    use compute_heavy_future_executor::{global_strategy, spawn_compute_heavy_future};
     use tokio::select;
 
-    initialize_secondary_tokio_runtime_strategy();
+    global_strategy()
+        .unwrap()
+        .initialize_secondary_tokio_runtime()
+        .unwrap();
 
     let (tx, mut rx) = tokio::sync::oneshot::channel::<()>();
-    let future = async move { {
-        tokio::time::sleep(Duration::from_secs(60)).await;
-        let _ = tx.send(());
-    } };
+    let future = async move {
+        {
+            tokio::time::sleep(Duration::from_secs(60)).await;
+            let _ = tx.send(());
+        }
+    };
 
     select! {
         _ = tokio::time::sleep(Duration::from_millis(10)) => { },
@@ -24,5 +27,8 @@ async fn secondary_tokio_runtime_strategy_cancel_safe() {
     tokio::time::sleep(Duration::from_millis(10)).await;
 
     // future should have been cancelled when spawn compute heavy future was dropped
-    assert_eq!(rx.try_recv(), Err(tokio::sync::oneshot::error::TryRecvError::Closed));
+    assert_eq!(
+        rx.try_recv(),
+        Err(tokio::sync::oneshot::error::TryRecvError::Closed)
+    );
 }

@@ -1,5 +1,5 @@
 use compute_heavy_future_executor::{
-    initialize_custom_executor_strategy, spawn_compute_heavy_future, CustomExecutorClosure,
+    global_strategy, spawn_compute_heavy_future, CustomExecutorClosure,
 };
 
 #[tokio::test]
@@ -11,7 +11,10 @@ async fn custom_strategy_legal_closure() {
         })
     });
 
-    initialize_custom_executor_strategy(closure);
+    global_strategy()
+        .unwrap()
+        .initialize_custom_executor(closure)
+        .unwrap();
 
     let future = async { 5 };
 

@@ -1,11 +1,12 @@
 #[cfg(feature = "tokio")]
 #[tokio::test]
 async fn spawn_blocking_strategy() {
-    use compute_heavy_future_executor::{
-        initialize_spawn_blocking_strategy, spawn_compute_heavy_future,
-    };
+    use compute_heavy_future_executor::{global_strategy, spawn_compute_heavy_future};
 
-    initialize_spawn_blocking_strategy();
+    global_strategy()
+        .unwrap()
+        .initialize_spawn_blocking()
+        .unwrap();
 
     let future = async { 5 };
 
