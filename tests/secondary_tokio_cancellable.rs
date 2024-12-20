@@ -3,10 +3,10 @@
 async fn secondary_tokio_runtime_strategy_cancel_safe() {
     use std::time::Duration;
 
-    use compute_heavy_future_executor::{global_strategy, spawn_compute_heavy_future};
+    use compute_heavy_future_executor::{global_strategy_builder, spawn_compute_heavy_future};
     use tokio::select;
 
-    global_strategy()
+    global_strategy_builder()
         .unwrap()
         .initialize_secondary_tokio_runtime()
         .unwrap();

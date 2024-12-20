@@ -1,9 +1,9 @@
 #[cfg(feature = "secondary_tokio_runtime")]
 #[tokio::test]
 async fn secondary_tokio_runtime_builder_allowed_config() {
-    use compute_heavy_future_executor::{global_strategy, spawn_compute_heavy_future};
+    use compute_heavy_future_executor::{global_strategy_builder, spawn_compute_heavy_future};
 
-    global_strategy()
+    global_strategy_builder()
         .unwrap()
         .secondary_tokio_runtime_builder()
         .channel_size(10)

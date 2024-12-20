@@ -3,10 +3,10 @@
 async fn spawn_blocking_strategy_cancellable() {
     use std::time::Duration;
 
-    use compute_heavy_future_executor::{global_strategy, spawn_compute_heavy_future};
+    use compute_heavy_future_executor::{global_strategy_builder, spawn_compute_heavy_future};
     use tokio::select;
 
-    global_strategy()
+    global_strategy_builder()
         .unwrap()
         .initialize_spawn_blocking()
         .unwrap();

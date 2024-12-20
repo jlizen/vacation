@@ -1,7 +1,7 @@
 use compute_heavy_future_executor::{
-    global_strategy, spawn_compute_heavy_future, CustomExecutorClosure,
+    global_strategy, global_strategy_builder, spawn_compute_heavy_future, CurrentStrategy,
+    CustomExecutorClosure, ExecutorStrategy,
 };
-
 #[tokio::test]
 async fn custom_strategy_legal_closure() {
     let closure: CustomExecutorClosure = Box::new(|fut| {
@@ -11,7 +11,7 @@ async fn custom_strategy_legal_closure() {
         })
     });
 
-    global_strategy()
+    global_strategy_builder()
         .unwrap()
         .initialize_custom_executor(closure)
         .unwrap();
@@ -20,4 +20,9 @@ async fn custom_strategy_legal_closure() {
 
     let res = spawn_compute_heavy_future(future).await.unwrap();
     assert_eq!(res, 5);
+
+    assert_eq!(
+        global_strategy(),
+        CurrentStrategy::Initialized(ExecutorStrategy::CustomExecutor)
+    );
 }
