@@ -1,5 +1,6 @@
-#[cfg(feature = "tokio_multi_threaded")]
+#[cfg(feature = "tokio_block_in_place")]
 mod block_in_place;
+mod concurrency_limit;
 mod current_context;
 mod custom_executor;
 pub mod error;
@@ -9,20 +10,22 @@ mod secondary_tokio_runtime;
 mod spawn_blocking;
 
 pub use custom_executor::CustomExecutorClosure;
+pub use error::Error;
 #[cfg(feature = "secondary_tokio_runtime")]
 pub use secondary_tokio_runtime::SecondaryTokioRuntimeStrategyBuilder;
 
-use std::{fmt::Debug, future::Future, sync::OnceLock};
-
-#[cfg(feature = "tokio_multi_threaded")]
+#[cfg(feature = "tokio_block_in_place")]
 use block_in_place::BlockInPlaceExecutor;
 use current_context::CurrentContextExecutor;
 use custom_executor::CustomExecutor;
-use error::Error;
 #[cfg(feature = "secondary_tokio_runtime")]
 use secondary_tokio_runtime::SecondaryTokioRuntimeExecutor;
 #[cfg(feature = "tokio")]
 use spawn_blocking::SpawnBlockingExecutor;
+
+use std::{fmt::Debug, future::Future, sync::OnceLock};
+
+use tokio::{select, sync::oneshot::Receiver};
 
 // TODO: module docs, explain the point of this library, give some samples
 
@@ -51,17 +54,49 @@ pub fn global_strategy() -> CurrentStrategy {
 
 #[must_use]
 #[derive(Default)]
-pub struct GlobalStrategyBuilder {}
+pub struct GlobalStrategyBuilder {
+    max_concurrency: Option<usize>,
+}
 
 impl GlobalStrategyBuilder {
+    /// Set the max number of simultaneous futures processed by this executor.
+    ///
+    /// If this number is exceeded, the futures sent to
+    /// [`spawn_compute_heavy_future()`] will sleep until a permit
+    /// can be acquired.
+    ///
+    /// ## Default
+    /// No maximum concurrency
+    ///
+    /// # Example
+    ///
+    /// ```
+    /// use compute_heavy_future_executor::global_strategy_builder;
+    ///
+    /// # async fn run() {
+    /// global_strategy_builder()
+    ///         .unwrap()
+    ///         .max_concurrency(10).
+    ///         initialize_current_context()
+    ///         .unwrap();
+    /// # }
+    pub fn max_concurrency(self, max_task_concurrency: usize) -> Self {
+        Self {
+            max_concurrency: Some(max_task_concurrency),
+            ..self
+        }
+    }
+
     /// Initializes a new global strategy to wait in the current context.
     ///
-    /// This is effectively a non-op wrapper
-    /// that adds no special handling for the future. This is the default if
-    /// the `tokio` feature is disabled.
+    /// This is effectively a non-op wrapper that adds no special handling for the future besides optional concurrency control.
+    /// This is the default if the `tokio` feature is disabled.
     ///
     /// # Cancellation
-    /// Yes, the future is dropped if the caller drops the returned future from spawn_compute_heavy_future().
+    /// Yes, the future is dropped if the caller drops the returned future from
+    ///[`spawn_compute_heavy_future()`].
+    ///
+    /// Note that it will only be dropped across yield points in the case of long-blocking futures.
     ///
     /// ## Error
     /// Returns an error if the global strategy is already initialized.
@@ -86,8 +121,8 @@ impl GlobalStrategyBuilder {
     /// # }
     /// ```
     pub fn initialize_current_context(self) -> Result<(), Error> {
-        log::info!("initializing compute-heavy executor with current context strategy");
-        let strategy = ExecutorStrategyImpl::CurrentContext(CurrentContextExecutor {});
+        let strategy =
+            ExecutorStrategyImpl::CurrentContext(CurrentContextExecutor::new(self.max_concurrency));
         COMPUTE_HEAVY_FUTURE_EXECUTOR_STRATEGY
             .set(strategy)
             .map_err(|_| {
@@ -98,16 +133,21 @@ impl GlobalStrategyBuilder {
     }
 
     /// Initializes a new global strategy to execute futures by blocking on them inside the
-    /// tokio blocking threadpool.
+    /// tokio blocking threadpool. This is the default strategy if none is explicitly initialized,
+    /// if the `tokio` feature is enabled.
     ///
     /// By default, tokio will spin up a blocking thread
     /// per task, which may be more than your count of CPU cores, depending on runtime config.
     ///
-    /// If you expect many concurrent cpu-heavy futures, consider limiting your blocking tokio threadpool size.
+    /// If you expect many concurrent cpu-heavy futures, consider limiting your blocking
+    /// tokio threadpool size.
     /// Or, you can use a heavier weight strategy like [`initialize_secondary_tokio_runtime()`].
     ///
     /// # Cancellation
-    /// Yes, the future is dropped if the caller drops the returned future from spawn_compute_heavy_future().
+    /// Yes, the future is dropped if the caller drops the returned future
+    /// from [`spawn_compute_heavy_future()`].
+    ///
+    /// Note that it will only be dropped across yield points in the case of long-blocking futures.
     ///
     /// ## Error
     /// Returns an error if the global strategy is already initialized.
@@ -133,8 +173,8 @@ impl GlobalStrategyBuilder {
     /// ```
     #[cfg(feature = "tokio")]
     pub fn initialize_spawn_blocking(self) -> Result<(), Error> {
-        log::info!("initializing compute-heavy executor with spawn blocking strategy");
-        let strategy = ExecutorStrategyImpl::SpawnBlocking(SpawnBlockingExecutor {});
+        let strategy =
+            ExecutorStrategyImpl::SpawnBlocking(SpawnBlockingExecutor::new(self.max_concurrency));
         COMPUTE_HEAVY_FUTURE_EXECUTOR_STRATEGY
             .set(strategy)
             .map_err(|_| {
@@ -144,8 +184,9 @@ impl GlobalStrategyBuilder {
             })
     }
 
-    /// Initializes a new global strategy to execute futures  by calling task::block_in_place on the
-    /// current tokio worker. This evicts other tasks on same worker thread to avoid blocking them.
+    /// Initializes a new global strategy to execute futures  by calling tokio::task::block_in_place
+    /// on the current tokio worker thread. This evicts other tasks on same worker thread to
+    /// avoid blocking them.
     ///
     /// This approach can starve your executor of worker threads if called with too many
     /// concurrent cpu-heavy futures.
@@ -157,6 +198,8 @@ impl GlobalStrategyBuilder {
     /// No, this strategy does not allow futures to be cancelled.
     ///
     /// ## Error
+    /// Returns an error if called from a context besides a tokio multithreaded runtime.
+    ///
     /// Returns an error if the global strategy is already initialized.
     /// It can only be initialized once.
     ///
@@ -178,10 +221,10 @@ impl GlobalStrategyBuilder {
     /// assert_eq!(res, 5);
     /// # }
     /// ```
-    #[cfg(feature = "tokio_multi_threaded")]
+    #[cfg(feature = "tokio_block_in_place")]
     pub fn initialize_block_in_place(self) -> Result<(), Error> {
-        log::info!("initializing compute-heavy executor with block in place strategy");
-        let strategy = ExecutorStrategyImpl::BlockInPlace(BlockInPlaceExecutor {});
+        let strategy =
+            ExecutorStrategyImpl::BlockInPlace(BlockInPlaceExecutor::new(self.max_concurrency)?);
         COMPUTE_HEAVY_FUTURE_EXECUTOR_STRATEGY
             .set(strategy)
             .map_err(|_| {
@@ -222,7 +265,10 @@ impl GlobalStrategyBuilder {
     /// Default: no limit
     ///
     /// # Cancellation
-    /// Yes, the future is dropped if the caller drops the returned future from spawn_compute_heavy_future().
+    /// Yes, the future is dropped if the caller drops the returned future
+    /// from [`spawn_compute_heavy_future()`].
+    ///
+    /// Note that it will only be dropped across yield points in the case of long-blocking futures.
     ///
     /// ## Error
     /// Returns an error if the global strategy is already initialized.
@@ -251,7 +297,6 @@ impl GlobalStrategyBuilder {
     /// ```
     #[cfg(feature = "secondary_tokio_runtime")]
     pub fn initialize_secondary_tokio_runtime(self) -> Result<(), Error> {
-        log::info!("initializing compute-heavy executor with secondary tokio runtime strategy");
         self.secondary_tokio_runtime_builder().initialize()
     }
 
@@ -263,7 +308,10 @@ impl GlobalStrategyBuilder {
     /// ultimately load the strategy.
     ///
     /// # Cancellation
-    /// Yes, the future is dropped if the caller drops the returned future from spawn_compute_heavy_future().
+    /// Yes, the future is dropped if the caller drops the returned future
+    /// from [`spawn_compute_heavy_future()`].
+    ///
+    /// Note that it will only be dropped across yield points in the case of long-blocking futures.
     ///
     /// # Example
     ///
@@ -273,11 +321,12 @@ impl GlobalStrategyBuilder {
     ///
     /// # async fn run() {
     /// global_strategy_builder().unwrap().secondary_tokio_runtime_builder()
-    ///     .niceness(10).unwrap()
-    ///     .thread_count(5)
-    ///     .channel_size(5)
-    ///     .max_task_concurrency(5)
-    ///     .initialize().unwrap();
+    ///     .niceness(1).unwrap()
+    ///     .thread_count(2)
+    ///     .channel_size(3)
+    ///     .max_concurrency(4)
+    ///     .initialize()
+    ///     .unwrap();
     ///
     /// let future = async {
     ///     std::thread::sleep(std::time::Duration::from_millis(50));
@@ -290,7 +339,7 @@ impl GlobalStrategyBuilder {
     /// ```
     #[cfg(feature = "secondary_tokio_runtime")]
     pub fn secondary_tokio_runtime_builder(self) -> SecondaryTokioRuntimeStrategyBuilder {
-        SecondaryTokioRuntimeStrategyBuilder::default()
+        SecondaryTokioRuntimeStrategyBuilder::new(self.max_concurrency)
     }
 
     /// Accepts a closure that will poll an arbitrary feature to completion.
@@ -300,6 +349,8 @@ impl GlobalStrategyBuilder {
     /// # Cancellation
     /// Yes, the future is dropped if the caller drops the returned future from spawn_compute_heavy_future(),
     /// unless you spawn an uncancellable task within it.
+    ///
+    /// Note that it will only be dropped across yield points in the case of long-blocking futures.
     ///
     /// ## Error
     /// Returns an error if the global strategy is already initialized.
@@ -336,8 +387,10 @@ impl GlobalStrategyBuilder {
     ///
     /// ```
     pub fn initialize_custom_executor(self, closure: CustomExecutorClosure) -> Result<(), Error> {
-        log::info!("initializing compute-heavy executor with custom strategy");
-        let strategy = ExecutorStrategyImpl::CustomExecutor(CustomExecutor { closure });
+        let strategy = ExecutorStrategyImpl::CustomExecutor(CustomExecutor::new(
+            closure,
+            self.max_concurrency,
+        ));
         COMPUTE_HEAVY_FUTURE_EXECUTOR_STRATEGY
             .set(strategy)
             .map_err(|_| {
@@ -364,7 +417,7 @@ pub enum ExecutorStrategy {
     #[cfg(feature = "tokio")]
     SpawnBlocking,
     /// tokio task::block_in_place
-    #[cfg(feature = "tokio_multi_threaded")]
+    #[cfg(feature = "tokio_block_in_place")]
     BlockInPlace,
     #[cfg(feature = "secondary_tokio_runtime")]
     /// Spin up a second, lower-priority tokio runtime
@@ -379,7 +432,7 @@ impl From<&ExecutorStrategyImpl> for ExecutorStrategy {
             ExecutorStrategyImpl::CustomExecutor(_) => Self::CustomExecutor,
             #[cfg(feature = "tokio")]
             ExecutorStrategyImpl::SpawnBlocking(_) => Self::SpawnBlocking,
-            #[cfg(feature = "tokio_multi_threaded")]
+            #[cfg(feature = "tokio_block_in_place")]
             ExecutorStrategyImpl::BlockInPlace(_) => Self::BlockInPlace,
             #[cfg(feature = "secondary_tokio_runtime")]
             ExecutorStrategyImpl::SecondaryTokioRuntime(_) => Self::SecondaryTokioRuntime,
@@ -407,32 +460,36 @@ enum ExecutorStrategyImpl {
     #[cfg(feature = "tokio")]
     SpawnBlocking(SpawnBlockingExecutor),
     /// tokio task::block_in_place
-    #[cfg(feature = "tokio")]
+    #[cfg(feature = "tokio_block_in_place")]
     BlockInPlace(BlockInPlaceExecutor),
-    #[cfg(feature = "tokio")]
+    #[cfg(feature = "secondary_tokio_runtime")]
     /// Spin up a second, lower-priority tokio runtime
     /// that communicates via channels
     SecondaryTokioRuntime(SecondaryTokioRuntimeExecutor),
 }
 
+/// The fallback strategy used in case no strategy is explicitly set
+static DEFAULT_COMPUTE_HEAVY_FUTURE_EXECUTOR_STRATEGY: OnceLock<ExecutorStrategyImpl> =
+    OnceLock::new();
+
 impl Default for &ExecutorStrategyImpl {
     fn default() -> Self {
-        #[cfg(feature = "tokio")]
-        match tokio::runtime::Handle::current().runtime_flavor() {
-            tokio::runtime::RuntimeFlavor::MultiThread => {
-                &ExecutorStrategyImpl::BlockInPlace(BlockInPlaceExecutor {})
-            }
-            _ => {
-                log::trace!("spawn_compute_heavy_future called without setting an explicit executor strategy, \
-                setting to SpawnBlocking");
-                &ExecutorStrategyImpl::SpawnBlocking(SpawnBlockingExecutor {})
-            }
-        }
+        &DEFAULT_COMPUTE_HEAVY_FUTURE_EXECUTOR_STRATEGY.get_or_init(|| {
+            #[cfg(feature = "tokio")]
+            {
+                log::info!("Defaulting to SpawnBlocking strategy for compute-heavy future executor \
+                until a strategy is initialized");
 
-        #[cfg(not(feature = "tokio"))]
-        {
-            &ExecutorStrategyImpl::CurrentContext(CurrentContextExecutor {})
-        }
+                ExecutorStrategyImpl::SpawnBlocking(SpawnBlockingExecutor::new(None))
+            }
+
+            #[cfg(not(feature = "tokio"))]
+            {
+                log::warn!("Defaulting to CurrentContext (non-op) strategy for compute-heavy future executor \
+                until a strategy is initialized.");
+                ExecutorStrategyImpl::CurrentContext(CurrentContextExecutor::new(None))
+            }
+        })
     }
 }
 
@@ -442,7 +499,7 @@ impl Default for &ExecutorStrategyImpl {
 ///
 /// If no strategy is configured, this library will fall back to the following defaults:
 /// - no `tokio`` feature - current context
-/// - `tokio_multi_threaded` feature, inside multi-threaded runtime flavor - block in place
+/// - `tokio_block_in_place` feature, inside multi-threaded runtime flavor - block in place
 /// - `tokio` feature, all other cases - spawn blocking
 ///
 /// You can override these defaults by initializing a strategy via [`global_strategy_builder()`]
@@ -479,21 +536,40 @@ where
     R: Send + 'static,
 {
     let executor = COMPUTE_HEAVY_FUTURE_EXECUTOR_STRATEGY
-        .get().unwrap_or_else(|| {
-            let strategy = <&ExecutorStrategyImpl>::default();
-            log::debug!("using default strategy of {:#?} for compute-heavy future executor because no strategy has been initialized", ExecutorStrategy::from(strategy));
-            &strategy
-        });
+        .get()
+        .unwrap_or_else(|| <&ExecutorStrategyImpl>::default());
     match executor {
         ExecutorStrategyImpl::CurrentContext(executor) => executor.execute(fut).await,
         ExecutorStrategyImpl::CustomExecutor(executor) => executor.execute(fut).await,
-        #[cfg(feature = "tokio_multi_threaded")]
+        #[cfg(feature = "tokio_block_in_place")]
         ExecutorStrategyImpl::BlockInPlace(executor) => executor.execute(fut).await,
         #[cfg(feature = "tokio")]
         ExecutorStrategyImpl::SpawnBlocking(executor) => executor.execute(fut).await,
         #[cfg(feature = "secondary_tokio_runtime")]
         ExecutorStrategyImpl::SecondaryTokioRuntime(executor) => executor.execute(fut).await,
     }
+}
+
+pub(crate) fn make_future_cancellable<F, O>(fut: F) -> (impl Future<Output = ()>, Receiver<O>)
+where
+    F: std::future::Future<Output = O> + Send + 'static,
+    O: Send + 'static,
+{
+    let (mut tx, rx) = tokio::sync::oneshot::channel();
+    let wrapped_future = async {
+        select! {
+            _ = tx.closed() => {
+                // receiver already dropped, don't need to do anything
+                // cancel the background future
+            },
+            result = fut => {
+                // if this fails, the receiver already dropped, so we don't need to do anything
+                let _ = tx.send(result);
+            }
+        }
+    };
+
+    (wrapped_future, rx)
 }
 
 // tests are in /tests/ to allow separate initialization of oncelock across processes when using default cargo test runner

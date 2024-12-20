@@ -8,6 +8,7 @@ pub enum Error {
     AlreadyInitialized(ExecutorStrategy),
     InvalidConfig(InvalidConfig),
     RecvError(tokio::sync::oneshot::error::RecvError),
+    Semaphore(tokio::sync::AcquireError),
     BoxError(Box<dyn std::error::Error + Send + Sync>),
     #[cfg(feature = "tokio")]
     JoinError(tokio::task::JoinError),
@@ -30,6 +31,10 @@ impl fmt::Display for Error {
             Error::InvalidConfig(err) => write!(f, "invalid config: {err:#?}"),
             Error::BoxError(err) => write!(f, "custom executor error: {err}"),
             Error::RecvError(err) => write!(f, "error in custom executor response channel: {err}"),
+            Error::Semaphore(err) => write!(
+                f,
+                "concurrency limiter semaphore channel is closed, continuing: {err}"
+            ),
             #[cfg(feature = "tokio")]
             Error::JoinError(err) => write!(
                 f,

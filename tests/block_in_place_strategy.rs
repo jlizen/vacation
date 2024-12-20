@@ -1,4 +1,4 @@
-#[cfg(feature = "tokio")]
+#[cfg(feature = "tokio_block_in_place")]
 #[tokio::test(flavor = "multi_thread")]
 async fn block_in_place_strategy() {
     use compute_heavy_future_executor::{
