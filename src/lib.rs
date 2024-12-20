@@ -347,9 +347,7 @@ impl GlobalStrategyBuilder {
     /// Intended for injecting arbitrary runtimes/strategies or customizing existing ones.
     ///
     /// # Cancellation
-    /// Yes, the future is dropped if the caller drops the returned future from spawn_compute_heavy_future(),
-    /// unless you spawn an uncancellable task within it.
-    ///
+    /// Yes, the closure's returned future is dropped if the caller drops the returned future from [`spawn_compute_heavy_future()`].    
     /// Note that it will only be dropped across yield points in the case of long-blocking futures.
     ///
     /// ## Error
@@ -550,7 +548,7 @@ where
     }
 }
 
-pub(crate) fn make_future_cancellable<F, O>(fut: F) -> (impl Future<Output = ()>, Receiver<O>)
+pub fn make_future_cancellable<F, O>(fut: F) -> (impl Future<Output = ()>, Receiver<O>)
 where
     F: std::future::Future<Output = O> + Send + 'static,
     O: Send + 'static,

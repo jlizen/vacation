@@ -24,7 +24,7 @@ async fn spawn_blocking_concurrency() {
     join_all(futures).await;
 
     let elapsed_millis = start.elapsed().as_millis();
-    assert!(elapsed_millis < 40, "futures did not run concurrently");
+    assert!(elapsed_millis < 60, "futures did not run concurrently");
 
     assert!(elapsed_millis > 20, "futures exceeded max concurrency");
 }

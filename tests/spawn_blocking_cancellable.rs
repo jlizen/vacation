@@ -20,11 +20,11 @@ async fn spawn_blocking_strategy_cancellable() {
     };
 
     select! {
-        _ = tokio::time::sleep(Duration::from_millis(10)) => { },
+        _ = tokio::time::sleep(Duration::from_millis(4)) => { },
         _ = spawn_compute_heavy_future(future) => {}
     }
 
-    tokio::time::sleep(Duration::from_millis(10)).await;
+    tokio::time::sleep(Duration::from_millis(8)).await;
 
     // future should have been cancelled when spawn compute heavy future was dropped
     assert_eq!(
