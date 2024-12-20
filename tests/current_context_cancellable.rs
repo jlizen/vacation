@@ -1,11 +1,11 @@
 use std::time::Duration;
 
-use compute_heavy_future_executor::{global_strategy, spawn_compute_heavy_future};
+use compute_heavy_future_executor::{global_strategy_builder, spawn_compute_heavy_future};
 use tokio::select;
 
 #[tokio::test]
 async fn current_context_strategy() {
-    global_strategy()
+    global_strategy_builder()
         .unwrap()
         .initialize_current_context()
         .unwrap();

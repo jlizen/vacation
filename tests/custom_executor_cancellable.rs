@@ -4,7 +4,7 @@ async fn custom_strategy_cancellable() {
     use std::time::Duration;
 
     use compute_heavy_future_executor::{
-        global_strategy, spawn_compute_heavy_future, CustomExecutorClosure,
+        global_strategy_builder, spawn_compute_heavy_future, CustomExecutorClosure,
     };
     use tokio::select;
 
@@ -14,7 +14,7 @@ async fn custom_strategy_cancellable() {
             handle.await.map_err(|err| err.into())
         })
     });
-    global_strategy()
+    global_strategy_builder()
         .unwrap()
         .initialize_custom_executor(closure)
         .unwrap();

@@ -32,7 +32,7 @@ use spawn_blocking::SpawnBlockingExecutor;
 /// ## Error
 /// Returns an error if the global strategy is already initialized.
 /// It can only be initialized once.
-pub fn global_strategy() -> Result<GlobalStrategyBuilder, Error> {
+pub fn global_strategy_builder() -> Result<GlobalStrategyBuilder, Error> {
     if let Some(val) = COMPUTE_HEAVY_FUTURE_EXECUTOR_STRATEGY.get() {
         return Err(Error::AlreadyInitialized(val.into()));
     }
@@ -40,20 +40,20 @@ pub fn global_strategy() -> Result<GlobalStrategyBuilder, Error> {
     Ok(GlobalStrategyBuilder::default())
 }
 
+/// Get the currently initialized strategy, or the default strategy for the
+/// current feature and runtime type in case no strategy has been loaded.
+pub fn global_strategy() -> CurrentStrategy {
+    match COMPUTE_HEAVY_FUTURE_EXECUTOR_STRATEGY.get() {
+        Some(strategy) => CurrentStrategy::Initialized(strategy.into()),
+        None => CurrentStrategy::Default(<&ExecutorStrategyImpl>::default().into()),
+    }
+}
+
 #[must_use]
 #[derive(Default)]
 pub struct GlobalStrategyBuilder {}
 
 impl GlobalStrategyBuilder {
-    /// Get the currently initialized strategy, or the default strategy for the
-    /// current feature and runtime type in case no strategy has been loaded.
-    pub fn current_strategy() -> CurrentStrategy {
-        match COMPUTE_HEAVY_FUTURE_EXECUTOR_STRATEGY.get() {
-            Some(strategy) => CurrentStrategy::Initialized(strategy.into()),
-            None => CurrentStrategy::Default(<&ExecutorStrategyImpl>::default().into()),
-        }
-    }
-
     /// Initializes a new global strategy to wait in the current context.
     ///
     /// This is effectively a non-op wrapper
@@ -70,11 +70,11 @@ impl GlobalStrategyBuilder {
     /// # Example
     ///
     /// ```
-    /// use compute_heavy_future_executor::global_strategy;
+    /// use compute_heavy_future_executor::global_strategy_builder;
     /// use compute_heavy_future_executor::spawn_compute_heavy_future;
     ///
     /// # async fn run() {
-    /// global_strategy().unwrap().initialize_current_context().unwrap();
+    /// global_strategy_builder().unwrap().initialize_current_context().unwrap();
     ///
     /// let future = async {
     ///     std::thread::sleep(std::time::Duration::from_millis(50));
@@ -116,11 +116,11 @@ impl GlobalStrategyBuilder {
     /// # Example
     ///
     /// ```
-    /// use compute_heavy_future_executor::global_strategy;
+    /// use compute_heavy_future_executor::global_strategy_builder;
     /// use compute_heavy_future_executor::spawn_compute_heavy_future;
     ///
     /// # async fn run() {
-    /// global_strategy().unwrap().initialize_spawn_blocking().unwrap();
+    /// global_strategy_builder().unwrap().initialize_spawn_blocking().unwrap();
     ///
     /// let future = async {
     ///     std::thread::sleep(std::time::Duration::from_millis(50));
@@ -163,11 +163,11 @@ impl GlobalStrategyBuilder {
     /// # Example
     ///
     /// ```
-    /// use compute_heavy_future_executor::global_strategy;
+    /// use compute_heavy_future_executor::global_strategy_builder;
     /// use compute_heavy_future_executor::spawn_compute_heavy_future;
     ///
     /// # async fn run() {
-    /// global_strategy().unwrap().initialize_block_in_place().unwrap();
+    /// global_strategy_builder().unwrap().initialize_block_in_place().unwrap();
     ///
     /// let future = async {
     ///     std::thread::sleep(std::time::Duration::from_millis(50));
@@ -234,11 +234,11 @@ impl GlobalStrategyBuilder {
     /// # Example
     ///
     /// ```
-    /// use compute_heavy_future_executor::global_strategy;
+    /// use compute_heavy_future_executor::global_strategy_builder;
     /// use compute_heavy_future_executor::spawn_compute_heavy_future;
     ///
     /// # async fn run() {
-    /// global_strategy().unwrap().initialize_secondary_tokio_runtime().unwrap();
+    /// global_strategy_builder().unwrap().initialize_secondary_tokio_runtime().unwrap();
     ///
     /// let future = async {
     ///     std::thread::sleep(std::time::Duration::from_millis(50));
@@ -268,11 +268,11 @@ impl GlobalStrategyBuilder {
     /// # Example
     ///
     /// ```
-    /// use compute_heavy_future_executor::global_strategy;
+    /// use compute_heavy_future_executor::global_strategy_builder;
     /// use compute_heavy_future_executor::spawn_compute_heavy_future;
     ///
     /// # async fn run() {
-    /// global_strategy().unwrap().secondary_tokio_runtime_builder()
+    /// global_strategy_builder().unwrap().secondary_tokio_runtime_builder()
     ///     .niceness(10).unwrap()
     ///     .thread_count(5)
     ///     .channel_size(5)
@@ -308,7 +308,7 @@ impl GlobalStrategyBuilder {
     /// # Example
     ///
     /// ```
-    /// use compute_heavy_future_executor::global_strategy;
+    /// use compute_heavy_future_executor::global_strategy_builder;
     /// use compute_heavy_future_executor::spawn_compute_heavy_future;
     /// use compute_heavy_future_executor::CustomExecutorClosure;
     ///
@@ -323,7 +323,7 @@ impl GlobalStrategyBuilder {
     ///     )
     /// });
     ///
-    /// global_strategy().unwrap().initialize_custom_executor(closure).unwrap();
+    /// global_strategy_builder().unwrap().initialize_custom_executor(closure).unwrap();
     ///
     /// let future = async {
     ///     std::thread::sleep(std::time::Duration::from_millis(50));
@@ -348,13 +348,13 @@ impl GlobalStrategyBuilder {
     }
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum CurrentStrategy {
     Default(ExecutorStrategy),
     Initialized(ExecutorStrategy),
 }
 
-#[derive(Debug, Clone, Copy)]
+#[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ExecutorStrategy {
     /// A non-op strategy that awaits in the current context
     CurrentContext,
@@ -445,7 +445,7 @@ impl Default for &ExecutorStrategyImpl {
 /// - `tokio_multi_threaded` feature, inside multi-threaded runtime flavor - block in place
 /// - `tokio` feature, all other cases - spawn blocking
 ///
-/// You can override these defaults by initializing a strategy via [`global_strategy()`]
+/// You can override these defaults by initializing a strategy via [`global_strategy_builder()`]
 /// and [`GlobalStrategyBuilder`].
 ///
 /// # Cancellation

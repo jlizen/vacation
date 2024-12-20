@@ -1,6 +1,6 @@
-#[cfg(feature = "tokio_multi_threaded")]
-#[tokio::test(flavor = "multi_thread")]
-async fn default_to_current_context_tokio_multi_threaded() {
+#[cfg(feature = "tokio")]
+#[tokio::test]
+async fn spawn_blocking_strategy() {
     use compute_heavy_future_executor::{
         global_strategy, spawn_compute_heavy_future, CurrentStrategy, ExecutorStrategy,
     };
@@ -12,6 +12,6 @@ async fn default_to_current_context_tokio_multi_threaded() {
 
     assert_eq!(
         global_strategy(),
-        CurrentStrategy::Default(ExecutorStrategy::BlockInPlace)
+        CurrentStrategy::Default(ExecutorStrategy::SpawnBlocking)
     );
 }
