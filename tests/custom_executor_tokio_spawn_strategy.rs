@@ -7,8 +7,9 @@ async fn custom_strategy_tokio_spawn() {
 
     let closure: CustomExecutorClosure = Box::new(|fut| {
         Box::new(async move {
-            let handle = tokio::task::spawn(async move { fut.await });
-            handle.await.map_err(|err| err.into())
+            tokio::task::spawn(async move { fut.await })
+                .await
+                .map_err(|err| err.into())
         })
     });
     global_strategy_builder()

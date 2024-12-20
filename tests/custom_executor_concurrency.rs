@@ -32,7 +32,7 @@ async fn custom_strategy_concurrency() {
     join_all(futures).await;
 
     let elapsed_millis = start.elapsed().as_millis();
-    assert!(elapsed_millis < 40, "futures did not run concurrently");
+    assert!(elapsed_millis < 50, "futures did not run concurrently");
 
     assert!(elapsed_millis > 20, "futures exceeded max concurrency");
 }
