@@ -13,8 +13,8 @@ categories = ["asynchronous"]
 
 [features]
 tokio = ["tokio/rt"]
-tokio_multithreaded = ["tokio", "tokio/rt-multi-thread"]
-secondary_tokio_runtime = ["tokio_multithreaded", "dep:libc", "dep:num_cpus"]
+tokio_multi_threaded = ["tokio", "tokio/rt-multi-thread"]
+secondary_tokio_runtime = ["tokio_multi_threaded", "dep:libc", "dep:num_cpus"]
 
 [dependencies]
 libc = { version = "0.2.168", optional = true }
