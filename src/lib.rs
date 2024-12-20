@@ -366,8 +366,9 @@ impl GlobalStrategyBuilder {
     /// let closure: CustomExecutorClosure = Box::new(|fut| {
     ///     Box::new(
     ///         async move {
-    ///             let handle = tokio::task::spawn(async move { fut.await });
-    ///             handle.await.map_err(|err| err.into())
+    ///             tokio::task::spawn(async move { fut.await })
+    ///             .await
+    ///             .map_err(|err| err.into())
     ///         }
     ///     )
     /// });
@@ -497,8 +498,7 @@ impl Default for &ExecutorStrategyImpl {
 ///
 /// If no strategy is configured, this library will fall back to the following defaults:
 /// - no `tokio`` feature - current context
-/// - `tokio_block_in_place` feature, inside multi-threaded runtime flavor - block in place
-/// - `tokio` feature, all other cases - spawn blocking
+/// - all other cases - spawn blocking
 ///
 /// You can override these defaults by initializing a strategy via [`global_strategy_builder()`]
 /// and [`GlobalStrategyBuilder`].
@@ -506,10 +506,8 @@ impl Default for &ExecutorStrategyImpl {
 /// # Cancellation
 ///
 /// Most strategies will cancel the input future, if the caller drops the returned future,
-/// with the following exceptions:
-/// - the block in place strategy never cancels the futuer (until the executor is shut down)
-/// - the custom executor will generally cancel input futures, unless they are spawned to a task
-/// that is itself uncancellable
+/// with the following exception:
+/// - the block in place strategy never cancels the future (until the executor is shut down)
 ///
 /// # Example
 ///
