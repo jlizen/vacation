@@ -1,13 +1,123 @@
-use std::{future::Future, pin::Pin};
+use std::{future::Future, pin::Pin, sync::Arc};
 
-use tokio::{select, sync::mpsc::Sender};
+use tokio::{
+    select,
+    sync::{
+        mpsc::{Receiver, Sender},
+        Semaphore,
+    },
+};
 
-use crate::{error::Error, ComputeHeavyFutureExecutor};
+use crate::{
+    error::{Error, InvalidConfig},
+    ComputeHeavyFutureExecutor, ExecutorStrategyImpl, COMPUTE_HEAVY_FUTURE_EXECUTOR_STRATEGY,
+};
 
-const DEFAULT_SECONDARY_EXECUTOR_NICENESS: i8 = 10;
+const DEFAULT_NICENESS: i8 = 10;
+const DEFAULT_CHANNEL_SIZE: usize = 10;
 
-fn default_secondary_executor_thread_count() -> usize {
+fn default_thread_count() -> usize {
     num_cpus::get()
+}
+
+#[must_use]
+#[derive(Default)]
+pub struct SecondaryTokioRuntimeStrategyBuilder {
+    niceness: Option<i8>,
+    thread_count: Option<usize>,
+    channel_size: Option<usize>,
+    max_task_concurrency: Option<usize>,
+}
+
+impl SecondaryTokioRuntimeStrategyBuilder {
+    /// Set the thread niceness for the secondary runtime's worker threads,
+    /// which on linux is used to increase or lower relative
+    /// OS scheduling priority.
+    ///
+    /// Allowed values are -20..=19
+    ///
+    /// ## Default
+    ///
+    /// The default value is 10.
+    pub fn niceness(self, niceness: i8) -> Result<Self, Error> {
+        // please https://github.com/rust-lang/rfcs/issues/671
+        if !(-20..=19).contains(&niceness) {
+            return Err(Error::InvalidConfig(InvalidConfig {
+                field: "niceness",
+                received: niceness.to_string(),
+                allowed: "-20..=19",
+            }));
+        }
+
+        Ok(Self {
+            niceness: Some(niceness),
+            ..self
+        })
+    }
+
+    /// Set the count of worker threads in the secondary tokio runtime.
+    ///
+    /// ## Default
+    ///
+    /// The default value is the number of cpu cores
+    pub fn thread_count(self, thread_count: usize) -> Self {
+        Self {
+            thread_count: Some(thread_count),
+            ..self
+        }
+    }
+
+    /// Set the buffer size of the channel used to spawn tasks
+    /// in the background executor.
+    ///
+    /// ## Default
+    ///
+    /// The default value is 10
+    pub fn channel_size(self, channel_size: usize) -> Self {
+        Self {
+            channel_size: Some(channel_size),
+            ..self
+        }
+    }
+
+    /// Set the max number of simultaneous background tasks running.
+    ///
+    /// If this number is reached, the background task spawner will poss,
+    /// and backpressure will build up in the background task channel
+    /// and then on calling senders.
+    ///
+    /// ## Default
+    /// No maximum concurrency
+    pub fn max_task_concurrency(self, max_task_concurrency: usize) -> Self {
+        Self {
+            max_task_concurrency: Some(max_task_concurrency),
+            ..self
+        }
+    }
+
+    pub fn initialize(self) -> Result<(), Error> {
+        let niceness = self.niceness.unwrap_or(DEFAULT_NICENESS);
+        let thread_count = self.thread_count.unwrap_or_else(|| default_thread_count());
+        let channel_size = self.channel_size.unwrap_or(DEFAULT_CHANNEL_SIZE);
+
+        log::info!("initializing compute-heavy executor with secondary tokio runtime strategy \
+        and niceness {niceness}, thread_count {thread_count}, channel_size {channel_size}, max task concurrency {:#?}", self.max_task_concurrency);
+
+        let executor = SecondaryTokioRuntimeExecutor::new(
+            niceness,
+            thread_count,
+            channel_size,
+            self.max_task_concurrency,
+        );
+
+        COMPUTE_HEAVY_FUTURE_EXECUTOR_STRATEGY
+            .set(ExecutorStrategyImpl::SecondaryTokioRuntime(executor))
+            .map_err(|_| {
+                Error::AlreadyInitialized(
+                    COMPUTE_HEAVY_FUTURE_EXECUTOR_STRATEGY.get().unwrap().into(),
+                )
+            })
+    }
 }
 
 type BackgroundFuture = Pin<Box<dyn Future<Output = ()> + Send + 'static>>;
@@ -17,19 +127,14 @@ pub(crate) struct SecondaryTokioRuntimeExecutor {
 }
 
 impl SecondaryTokioRuntimeExecutor {
-    pub(crate) fn new(niceness: Option<i8>, thread_count: Option<usize>) -> Self {
+    pub(crate) fn new(
+        niceness: i8,
+        thread_count: usize,
+        channel_size: usize,
+        max_task_concurrency: Option<usize>,
+    ) -> Self {
         // channel is only for routing work to new task::spawn so should be very quick
-        let (tx, mut rx) = tokio::sync::mpsc::channel(10);
-
-        let niceness = niceness.unwrap_or(DEFAULT_SECONDARY_EXECUTOR_NICENESS);
-
-        // please https://github.com/rust-lang/rfcs/issues/671
-        if !(-20..=19).contains(&niceness) {
-            panic!("SecondaryTokioRuntimeExecutor initialized with a niceness outside of -20..=19 : {niceness}");
-        }
-
-        let thread_count =
-            thread_count.unwrap_or_else(|| default_secondary_executor_thread_count());
+        let (tx, rx) = tokio::sync::mpsc::channel(channel_size);
 
         std::thread::Builder::new()
     .name("compute-heavy-executor".to_string())
@@ -54,15 +159,47 @@ impl SecondaryTokioRuntimeExecutor {
             .unwrap_or_else(|e| panic!("cpu heavy runtime failed_to_initialize: {}", e));
 
         rt.block_on(async {
-            log::debug!("starting secondary compute-heavy tokio executor");
-            while let Some(work) = rx.recv().await {
-                tokio::task::spawn(work);
+            if let Some(concurrency) = max_task_concurrency {
+                process_work_with_concurrency_limit(rx, concurrency).await;
+            } else {
+                process_work_simple(rx).await;
             }
         });
+        log::warn!("exiting secondary compute heavy tokio runtime because foreground channel closed");
     })
     .unwrap_or_else(|e| panic!("secondary compute-heavy runtime thread failed_to_initialize: {}", e));
 
         Self { tx }
+    }
+}
+
+async fn process_work_with_concurrency_limit(
+    mut rx: Receiver<BackgroundFuture>,
+    concurrency: usize,
+) {
+    let semaphore = Arc::new(Semaphore::new(concurrency));
+
+    log::debug!("starting to process work on secondary compute-heavy tokio executor with max concurrency {concurrency}");
+
+    while let Some(work) = rx.recv().await {
+        let permit = semaphore
+            .clone()
+            .acquire_owned()
+            .await
+            .expect("background secondary tokio runtime executor's sempahore has been closed");
+        tokio::task::spawn(async move {
+            work.await;
+            drop(permit);
+        });
+    }
+}
+
+async fn process_work_simple(mut rx: Receiver<BackgroundFuture>) {
+    log::debug!("starting to process work on secondary compute-heavy tokio executor");
+    while let Some(work) = rx.recv().await {
+        tokio::task::spawn(async move {
+            work.await;
+        });
     }
 }
 
@@ -94,8 +231,6 @@ impl ComputeHeavyFutureExecutor for SecondaryTokioRuntimeExecutor {
             }
         }
 
-        response_rx.await.map_err(|err| {
-            Error::RecvError(err)
-        })
+        response_rx.await.map_err(|err| Error::RecvError(err))
     }
 }

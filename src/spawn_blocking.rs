@@ -11,8 +11,8 @@ impl ComputeHeavyFutureExecutor for SpawnBlockingExecutor {
         O: Send + 'static,
     {
         let (mut tx, rx) = tokio::sync::oneshot::channel();
-    
-        let wrapped_future = async { 
+
+        let wrapped_future = async {
             select! {
                 _ = tx.closed() => {
                     // receiver already dropped, don't need to do anything
@@ -28,7 +28,8 @@ impl ComputeHeavyFutureExecutor for SpawnBlockingExecutor {
         if let Err(err) = tokio::task::spawn_blocking(move || {
             tokio::runtime::Handle::current().block_on(wrapped_future)
         })
-        .await {
+        .await
+        {
             return Err(Error::JoinError(err));
         }
 

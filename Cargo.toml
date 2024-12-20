@@ -8,7 +8,7 @@ homepage = "https://github.com/jlizen/compute-heavy-future-executor"
 rust-version = "1.70"
 exclude = ["/.github", "/examples", "/scripts"]
 readme = "README.md"
-description = "Additional executor patterns for use handling compute-bounded, blocking futures."
+description = "Additional executor patterns for handling compute-bounded, blocking futures."
 categories = ["asynchronous"]
 
 [features]

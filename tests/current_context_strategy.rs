@@ -1,10 +1,11 @@
-use compute_heavy_future_executor::{
-    initialize_current_context_strategy, spawn_compute_heavy_future,
-};
+use compute_heavy_future_executor::{global_strategy, spawn_compute_heavy_future};
 
 #[tokio::test]
 async fn current_context_strategy() {
-    initialize_current_context_strategy();
+    global_strategy()
+        .unwrap()
+        .initialize_current_context()
+        .unwrap();
 
     let future = async { 5 };
 

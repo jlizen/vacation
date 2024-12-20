@@ -2,7 +2,7 @@
 #[tokio::test]
 async fn custom_strategy_tokio_spawn() {
     use compute_heavy_future_executor::{
-        initialize_custom_executor_strategy, spawn_compute_heavy_future, CustomExecutorClosure,
+        global_strategy, spawn_compute_heavy_future, CustomExecutorClosure,
     };
 
     let closure: CustomExecutorClosure = Box::new(|fut| {
@@ -11,7 +11,10 @@ async fn custom_strategy_tokio_spawn() {
             handle.await.map_err(|err| err.into())
         })
     });
-    initialize_custom_executor_strategy(closure);
+    global_strategy()
+        .unwrap()
+        .initialize_custom_executor(closure)
+        .unwrap();
 
     let future = async { 5 };
 
