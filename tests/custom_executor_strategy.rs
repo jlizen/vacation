@@ -3,7 +3,7 @@ use compute_heavy_future_executor::{
     CustomExecutorClosure, ExecutorStrategy,
 };
 #[tokio::test]
-async fn custom_strategy_legal_closure() {
+async fn custom_strategy() {
     let closure: CustomExecutorClosure = Box::new(|fut| {
         Box::new(async move {
             let res = fut.await;

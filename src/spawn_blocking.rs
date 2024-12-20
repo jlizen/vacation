@@ -1,8 +1,19 @@
-use tokio::select;
+use crate::{
+    concurrency_limit::ConcurrencyLimit, error::Error, make_future_cancellable,
+    ComputeHeavyFutureExecutor,
+};
 
-use crate::{error::Error, ComputeHeavyFutureExecutor};
+pub(crate) struct SpawnBlockingExecutor {
+    concurrency_limit: ConcurrencyLimit,
+}
 
-pub(crate) struct SpawnBlockingExecutor {}
+impl SpawnBlockingExecutor {
+    pub(crate) fn new(max_concurrency: Option<usize>) -> Self {
+        let concurrency_limit = ConcurrencyLimit::new(max_concurrency);
+
+        Self { concurrency_limit }
+    }
+}
 
 impl ComputeHeavyFutureExecutor for SpawnBlockingExecutor {
     async fn execute<F, O>(&self, fut: F) -> Result<O, Error>
@@ -10,20 +21,9 @@ impl ComputeHeavyFutureExecutor for SpawnBlockingExecutor {
         F: std::future::Future<Output = O> + Send + 'static,
         O: Send + 'static,
     {
-        let (mut tx, rx) = tokio::sync::oneshot::channel();
+        let _permit = self.concurrency_limit.acquire_permit().await;
 
-        let wrapped_future = async {
-            select! {
-                _ = tx.closed() => {
-                    // receiver already dropped, don't need to do anything
-                    // cancel the background future
-                },
-                result = fut => {
-                    // if this fails, the receiver already dropped, so we don't need to do anything
-                    let _ = tx.send(result);
-                }
-            }
-        };
+        let (wrapped_future, rx) = make_future_cancellable(fut);
 
         if let Err(err) = tokio::task::spawn_blocking(move || {
             tokio::runtime::Handle::current().block_on(wrapped_future)

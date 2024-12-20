@@ -1,16 +1,12 @@
-use std::{future::Future, pin::Pin, sync::Arc};
+use std::{future::Future, pin::Pin};
 
-use tokio::{
-    select,
-    sync::{
-        mpsc::{Receiver, Sender},
-        Semaphore,
-    },
-};
+use tokio::sync::mpsc::Sender;
 
 use crate::{
+    concurrency_limit::ConcurrencyLimit,
     error::{Error, InvalidConfig},
-    ComputeHeavyFutureExecutor, ExecutorStrategyImpl, COMPUTE_HEAVY_FUTURE_EXECUTOR_STRATEGY,
+    make_future_cancellable, ComputeHeavyFutureExecutor, ExecutorStrategyImpl,
+    COMPUTE_HEAVY_FUTURE_EXECUTOR_STRATEGY,
 };
 
 const DEFAULT_NICENESS: i8 = 10;
@@ -20,13 +16,44 @@ fn default_thread_count() -> usize {
     num_cpus::get()
 }
 
+/// Extention of [`GlobalStrategyBuilder`] for a customized secondary tokio runtime strategy.
+///
+/// Requires calling [`SecondaryTokioRuntimeStrategyBuilder::initialize()`] to
+/// initialize the strategy.
+///
+/// # Example
+///
+/// ```
+/// use compute_heavy_future_executor::global_strategy_builder;
+/// use compute_heavy_future_executor::spawn_compute_heavy_future;
+///
+/// # async fn run() {
+/// global_strategy_builder().unwrap().secondary_tokio_runtime_builder()
+///     .niceness(1).unwrap()
+///     .thread_count(2)
+///     .channel_size(3)
+///     .max_concurrency(4)
+///     .initialize()
+///     .unwrap();
+/// # }
+/// ```
 #[must_use]
 #[derive(Default)]
 pub struct SecondaryTokioRuntimeStrategyBuilder {
     niceness: Option<i8>,
     thread_count: Option<usize>,
     channel_size: Option<usize>,
-    max_task_concurrency: Option<usize>,
+    // passed down from the parent `GlobalStrategy` builder, not modified internally
+    max_concurrency: Option<usize>,
+}
+
+impl SecondaryTokioRuntimeStrategyBuilder {
+    pub(crate) fn new(max_concurrency: Option<usize>) -> Self {
+        Self {
+            max_concurrency,
+            ..Default::default()
+        }
+    }
 }
 
 impl SecondaryTokioRuntimeStrategyBuilder {
@@ -80,17 +107,16 @@ impl SecondaryTokioRuntimeStrategyBuilder {
         }
     }
 
-    /// Set the max number of simultaneous background tasks running.
+    /// Set the max number of simultaneous futures processed by this executor.
     ///
-    /// If this number is reached, the background task spawner will poss,
-    /// and backpressure will build up in the background task channel
-    /// and then on calling senders.
+    /// Yes, the future is dropped if the caller drops the returned future from
+    ///[`spawn_compute_heavy_future()`].
     ///
     /// ## Default
     /// No maximum concurrency
-    pub fn max_task_concurrency(self, max_task_concurrency: usize) -> Self {
+    pub fn max_concurrency(self, max_task_concurrency: usize) -> Self {
         Self {
-            max_task_concurrency: Some(max_task_concurrency),
+            max_concurrency: Some(max_task_concurrency),
             ..self
         }
     }
@@ -101,13 +127,13 @@ impl SecondaryTokioRuntimeStrategyBuilder {
         let channel_size = self.channel_size.unwrap_or(DEFAULT_CHANNEL_SIZE);
 
         log::info!("initializing compute-heavy executor with secondary tokio runtime strategy \
-        and niceness {niceness}, thread_count {thread_count}, channel_size {channel_size}, max task concurrency {:#?}", self.max_task_concurrency);
+        and niceness {niceness}, thread_count {thread_count}, channel_size {channel_size}, max concurrency {:#?}", self.max_concurrency);
 
         let executor = SecondaryTokioRuntimeExecutor::new(
             niceness,
             thread_count,
             channel_size,
-            self.max_task_concurrency,
+            self.max_concurrency,
         );
 
         COMPUTE_HEAVY_FUTURE_EXECUTOR_STRATEGY
@@ -124,6 +150,7 @@ type BackgroundFuture = Pin<Box<dyn Future<Output = ()> + Send + 'static>>;
 
 pub(crate) struct SecondaryTokioRuntimeExecutor {
     tx: Sender<BackgroundFuture>,
+    concurrency_limit: ConcurrencyLimit,
 }
 
 impl SecondaryTokioRuntimeExecutor {
@@ -131,10 +158,10 @@ impl SecondaryTokioRuntimeExecutor {
         niceness: i8,
         thread_count: usize,
         channel_size: usize,
-        max_task_concurrency: Option<usize>,
+        max_concurrency: Option<usize>,
     ) -> Self {
         // channel is only for routing work to new task::spawn so should be very quick
-        let (tx, rx) = tokio::sync::mpsc::channel(channel_size);
+        let (tx, mut rx) = tokio::sync::mpsc::channel(channel_size);
 
         std::thread::Builder::new()
     .name("compute-heavy-executor".to_string())
@@ -159,47 +186,22 @@ impl SecondaryTokioRuntimeExecutor {
             .unwrap_or_else(|e| panic!("cpu heavy runtime failed_to_initialize: {}", e));
 
         rt.block_on(async {
-            if let Some(concurrency) = max_task_concurrency {
-                process_work_with_concurrency_limit(rx, concurrency).await;
-            } else {
-                process_work_simple(rx).await;
+            log::debug!("starting to process work on secondary compute-heavy tokio executor");
+
+            while let Some(work) = rx.recv().await {
+                tokio::task::spawn(async move {
+                    work.await
+                });
             }
         });
         log::warn!("exiting secondary compute heavy tokio runtime because foreground channel closed");
     })
     .unwrap_or_else(|e| panic!("secondary compute-heavy runtime thread failed_to_initialize: {}", e));
 
-        Self { tx }
-    }
-}
-
-async fn process_work_with_concurrency_limit(
-    mut rx: Receiver<BackgroundFuture>,
-    concurrency: usize,
-) {
-    let semaphore = Arc::new(Semaphore::new(concurrency));
-
-    log::debug!("starting to process work on secondary compute-heavy tokio executor with max concurrency {concurrency}");
-
-    while let Some(work) = rx.recv().await {
-        let permit = semaphore
-            .clone()
-            .acquire_owned()
-            .await
-            .expect("background secondary tokio runtime executor's sempahore has been closed");
-        tokio::task::spawn(async move {
-            work.await;
-            drop(permit);
-        });
-    }
-}
-
-async fn process_work_simple(mut rx: Receiver<BackgroundFuture>) {
-    log::debug!("starting to process work on secondary compute-heavy tokio executor");
-    while let Some(work) = rx.recv().await {
-        tokio::task::spawn(async move {
-            work.await;
-        });
+        Self {
+            tx,
+            concurrency_limit: ConcurrencyLimit::new(max_concurrency),
+        }
     }
 }
 
@@ -209,28 +211,19 @@ impl ComputeHeavyFutureExecutor for SecondaryTokioRuntimeExecutor {
         F: std::future::Future<Output = O> + Send + 'static,
         O: Send + 'static,
     {
-        let (mut response_tx, response_rx) = tokio::sync::oneshot::channel();
+        let _permit = self.concurrency_limit.acquire_permit().await;
 
-        let background_future = Box::pin(async move {
-            select!(
-                _ = response_tx.closed() => {
-                    // receiver already dropped, don't need to do anything
-                    // cancel the background future
-                }
-                result = fut => {
-                    // if this fails, the receiver already dropped, so we don't need to do anything
-                    let _ = response_tx.send(result);
-                }
-            )
-        });
+        let (wrapped_future, rx) = make_future_cancellable(fut);
 
-        match self.tx.send(Box::pin(background_future)).await {
+        match self.tx.send(Box::pin(wrapped_future)).await {
             Ok(_) => (),
             Err(err) => {
                 panic!("secondary compute-heavy runtime channel cannot be reached: {err}")
             }
         }
 
-        response_rx.await.map_err(|err| Error::RecvError(err))
+        rx.await.map_err(|err| Error::RecvError(err))
+
+        // permit implicitly drops
     }
 }

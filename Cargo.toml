@@ -13,8 +13,8 @@ categories = ["asynchronous"]
 
 [features]
 tokio = ["tokio/rt"]
-tokio_multi_threaded = ["tokio", "tokio/rt-multi-thread"]
-secondary_tokio_runtime = ["tokio_multi_threaded", "dep:libc", "dep:num_cpus"]
+tokio_block_in_place = ["tokio", "tokio/rt-multi-thread"]
+secondary_tokio_runtime = ["tokio", "tokio/rt-multi-thread", "dep:libc", "dep:num_cpus"]
 
 [dependencies]
 libc = { version = "0.2.168", optional = true }
@@ -24,6 +24,11 @@ tokio = { version = "1.0", features = ["macros", "sync"] }
 
 [dev-dependencies]
 tokio = { version = "1.0", features = ["full"]}
+futures-util = "0.3.31"
 
 [package.metadata.docs.rs]
 all-features = true
+
+
+[lints.rust]
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tokio_unstable)'] }
