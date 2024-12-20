@@ -1,6 +1,6 @@
 #[cfg(feature = "tokio")]
 #[tokio::test]
-async fn custom_strategy_legal_closure_tokio_spawn() {
+async fn custom_strategy_tokio_spawn() {
     use compute_heavy_future_executor::{
         initialize_custom_executor_strategy, spawn_compute_heavy_future, CustomExecutorClosure,
     };

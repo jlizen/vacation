@@ -1,4 +1,4 @@
-#[cfg(feature = "tokio")]
+#[cfg(feature = "secondary_tokio_runtime")]
 #[tokio::test]
 #[should_panic]
 async fn secondary_tokio_runtime_strategy_disallowed_config() {

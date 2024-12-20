@@ -1,4 +1,4 @@
-#[cfg(feature = "tokio_multithreaded")]
+#[cfg(feature = "tokio_multi_threaded")]
 mod block_in_place;
 mod current_context;
 mod custom_executor;
@@ -12,7 +12,7 @@ pub use custom_executor::CustomExecutorClosure;
 
 use std::{future::Future, sync::OnceLock};
 
-#[cfg(feature = "tokio_multithreaded")]
+#[cfg(feature = "tokio_multi_threaded")]
 use block_in_place::BlockInPlaceExecutor;
 use current_context::CurrentContextExecutor;
 use custom_executor::CustomExecutor;
@@ -26,8 +26,12 @@ use spawn_blocking::SpawnBlockingExecutor;
 
 /// Awaits the future in the current context. This is effectively a non-op wrapper
 /// that adds no special handling for the future. This is the default if
-/// the #[cfg(feature = "tokio")] rust flag is disabled.
+/// the `tokio` feature is disabled.
 ///
+/// 
+/// # Cancellation
+/// Yes, the future is dropped if the caller drops the returned future
+/// 
 /// # Panics
 /// Panics if compute-heavy executor strategy is initialized more than once, across all strategies.
 ///
@@ -62,7 +66,10 @@ pub fn initialize_current_context_strategy() {
 ///
 /// If you expect many concurrent cpu-heavy futures, consider limiting your blocking tokio threadpool size.
 /// Or, you can use a heavier weight strategy like [`initialize_secondary_tokio_runtime_strategy`].
-///
+/// 
+/// # Cancellation
+/// Yes, the future is dropped if the caller drops the returned future
+/// 
 /// # Panics
 /// Panics if compute-heavy executor strategy is initialized more than once, across all strategies.
 ///
@@ -102,6 +109,9 @@ pub fn initialize_spawn_blocking_strategy() {
 /// If you expect many concurrent cpu-heavy futures, consider a
 /// heavier weight strategy like [`initialize_secondary_tokio_runtime_strategy`].
 ///
+/// # Cancellation
+/// No, this future is not cancellable
+/// 
 /// # Panics
 /// Panics if compute-heavy executor strategy is initialized more than once, across all strategies.
 ///
@@ -123,7 +133,7 @@ pub fn initialize_spawn_blocking_strategy() {
 /// assert_eq!(res, 5);
 /// # }
 /// ```
-#[cfg(feature = "tokio_multithreaded")]
+#[cfg(feature = "tokio_multi_threaded")]
 pub fn initialize_block_in_place_strategy() {
     log::info!("initializing compute-heavy executor with block in place strategy");
     let strategy = ExecutorStrategy::BlockInPlace(BlockInPlaceExecutor {});
@@ -136,6 +146,9 @@ pub fn initialize_block_in_place_strategy() {
 /// Uses the same number of threads as cpu core, and reduced thread priority on linux (niceness 10).
 /// Use secondary_executor_config() to customize the defaults.
 ///
+/// # Cancellation
+/// Yes, the future is dropped if the caller drops the returned future
+/// 
 /// # Panics
 /// Panics if compute-heavy executor strategy is initialized more than once, across all strategies.
 ///
@@ -172,6 +185,9 @@ pub fn initialize_secondary_tokio_runtime_strategy() {
 /// Allows custom thread niceness of -20..=19 , and any thread count. If either value is omitted,
 /// it will fall back to the default of 10 niceness and/or count of threads = cpu core count.
 ///
+/// # Cancellation
+/// Yes, the future is dropped if the caller drops the returned future
+/// 
 /// # Panics
 /// Panics if niceness provided outside of -20..=19 bounds.
 ///
@@ -214,6 +230,10 @@ pub fn initialize_secondary_tokio_runtime_strategy_and_config(
 /// 
 /// Intended for injecting arbitrary runtimes/strategies or customizing existing ones.
 ///
+/// # Cancellation
+/// Yes, the future is dropped if the caller drops the returned future,
+/// unless you spawn an uncancellable task within it
+/// 
 /// # Panics
 ///
 /// Panics if compute-heavy executor strategy is initialized more than once, across all strategies.
@@ -299,6 +319,14 @@ enum ExecutorStrategy {
 /// - [`initialize_block_in_place_strategy`]
 /// - [`initialize_secondary_tokio_runtime_strategy`]
 /// - [`initialize_secondary_tokio_runtime_strategy_and_config`]
+/// 
+/// # Cancellation
+/// 
+/// Most strategies will cancel the input future, if the caller drops the returned future,
+/// with the following exceptions:
+/// - the block in place strategy never cancels the futuer (until the executor is shut down)
+/// - the custom executor will generally cancel input futures, unless they are spawned to a task
+/// that is itself uncancellable
 ///
 /// # Example
 ///
@@ -348,7 +376,7 @@ where
     match executor {
         ExecutorStrategy::CurrentContext(executor) => executor.execute(fut).await,
         ExecutorStrategy::CustomExecutor(executor) => executor.execute(fut).await,
-        #[cfg(feature = "tokio_multithreaded")]
+        #[cfg(feature = "tokio_multi_threaded")]
         ExecutorStrategy::BlockInPlace(executor) => executor.execute(fut).await,
         #[cfg(feature = "tokio")]
         ExecutorStrategy::SpawnBlocking(executor) => executor.execute(fut).await,
