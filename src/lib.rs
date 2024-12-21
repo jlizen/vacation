@@ -62,7 +62,7 @@ impl GlobalStrategyBuilder {
     /// Set the max number of simultaneous futures processed by this executor.
     ///
     /// If this number is exceeded, the futures sent to
-    /// [`spawn_compute_heavy_future()`] will sleep until a permit
+    /// [`run_compute_heavy_future()`] will sleep until a permit
     /// can be acquired.
     ///
     /// ## Default
@@ -94,7 +94,7 @@ impl GlobalStrategyBuilder {
     ///
     /// # Cancellation
     /// Yes, the future is dropped if the caller drops the returned future from
-    ///[`spawn_compute_heavy_future()`].
+    ///[`run_compute_heavy_future()`].
     ///
     /// Note that it will only be dropped across yield points in the case of long-blocking futures.
     ///
@@ -106,7 +106,7 @@ impl GlobalStrategyBuilder {
     ///
     /// ```
     /// use compute_heavy_future_executor::global_strategy_builder;
-    /// use compute_heavy_future_executor::spawn_compute_heavy_future;
+    /// use compute_heavy_future_executor::run_compute_heavy_future;
     ///
     /// # async fn run() {
     /// global_strategy_builder().unwrap().initialize_current_context().unwrap();
@@ -116,7 +116,7 @@ impl GlobalStrategyBuilder {
     ///     5
     ///  };
     ///
-    /// let res = spawn_compute_heavy_future(future).await.unwrap();
+    /// let res = run_compute_heavy_future(future).await.unwrap();
     /// assert_eq!(res, 5);
     /// # }
     /// ```
@@ -145,7 +145,7 @@ impl GlobalStrategyBuilder {
     ///
     /// # Cancellation
     /// Yes, the future is dropped if the caller drops the returned future
-    /// from [`spawn_compute_heavy_future()`].
+    /// from [`run_compute_heavy_future()`].
     ///
     /// Note that it will only be dropped across yield points in the case of long-blocking futures.
     ///
@@ -157,7 +157,7 @@ impl GlobalStrategyBuilder {
     ///
     /// ```
     /// use compute_heavy_future_executor::global_strategy_builder;
-    /// use compute_heavy_future_executor::spawn_compute_heavy_future;
+    /// use compute_heavy_future_executor::run_compute_heavy_future;
     ///
     /// # async fn run() {
     /// global_strategy_builder().unwrap().initialize_spawn_blocking().unwrap();
@@ -167,7 +167,7 @@ impl GlobalStrategyBuilder {
     ///     5
     ///  };
     ///
-    /// let res = spawn_compute_heavy_future(future).await.unwrap();
+    /// let res = run_compute_heavy_future(future).await.unwrap();
     /// assert_eq!(res, 5);
     /// # }
     /// ```
@@ -207,7 +207,7 @@ impl GlobalStrategyBuilder {
     ///
     /// ```
     /// use compute_heavy_future_executor::global_strategy_builder;
-    /// use compute_heavy_future_executor::spawn_compute_heavy_future;
+    /// use compute_heavy_future_executor::run_compute_heavy_future;
     ///
     /// # async fn run() {
     /// global_strategy_builder().unwrap().initialize_block_in_place().unwrap();
@@ -217,7 +217,7 @@ impl GlobalStrategyBuilder {
     ///     5
     ///  };
     ///
-    /// let res = spawn_compute_heavy_future(future).await.unwrap();
+    /// let res = run_compute_heavy_future(future).await.unwrap();
     /// assert_eq!(res, 5);
     /// # }
     /// ```
@@ -266,7 +266,7 @@ impl GlobalStrategyBuilder {
     ///
     /// # Cancellation
     /// Yes, the future is dropped if the caller drops the returned future
-    /// from [`spawn_compute_heavy_future()`].
+    /// from [`run_compute_heavy_future()`].
     ///
     /// Note that it will only be dropped across yield points in the case of long-blocking futures.
     ///
@@ -281,7 +281,7 @@ impl GlobalStrategyBuilder {
     ///
     /// ```
     /// use compute_heavy_future_executor::global_strategy_builder;
-    /// use compute_heavy_future_executor::spawn_compute_heavy_future;
+    /// use compute_heavy_future_executor::run_compute_heavy_future;
     ///
     /// # async fn run() {
     /// global_strategy_builder().unwrap().initialize_secondary_tokio_runtime().unwrap();
@@ -291,7 +291,7 @@ impl GlobalStrategyBuilder {
     ///     5
     ///  };
     ///
-    /// let res = spawn_compute_heavy_future(future).await.unwrap();
+    /// let res = run_compute_heavy_future(future).await.unwrap();
     /// assert_eq!(res, 5);
     /// # }
     /// ```
@@ -309,7 +309,7 @@ impl GlobalStrategyBuilder {
     ///
     /// # Cancellation
     /// Yes, the future is dropped if the caller drops the returned future
-    /// from [`spawn_compute_heavy_future()`].
+    /// from [`run_compute_heavy_future()`].
     ///
     /// Note that it will only be dropped across yield points in the case of long-blocking futures.
     ///
@@ -317,7 +317,7 @@ impl GlobalStrategyBuilder {
     ///
     /// ```
     /// use compute_heavy_future_executor::global_strategy_builder;
-    /// use compute_heavy_future_executor::spawn_compute_heavy_future;
+    /// use compute_heavy_future_executor::run_compute_heavy_future;
     ///
     /// # async fn run() {
     /// global_strategy_builder().unwrap().secondary_tokio_runtime_builder()
@@ -333,7 +333,7 @@ impl GlobalStrategyBuilder {
     ///     5
     ///  };
     ///
-    /// let res = spawn_compute_heavy_future(future).await.unwrap();
+    /// let res = run_compute_heavy_future(future).await.unwrap();
     /// assert_eq!(res, 5);
     /// # }
     /// ```
@@ -347,7 +347,7 @@ impl GlobalStrategyBuilder {
     /// Intended for injecting arbitrary runtimes/strategies or customizing existing ones.
     ///
     /// # Cancellation
-    /// Yes, the closure's returned future is dropped if the caller drops the returned future from [`spawn_compute_heavy_future()`].    
+    /// Yes, the closure's returned future is dropped if the caller drops the returned future from [`run_compute_heavy_future()`].    
     /// Note that it will only be dropped across yield points in the case of long-blocking futures.
     ///
     /// ## Error
@@ -358,7 +358,7 @@ impl GlobalStrategyBuilder {
     ///
     /// ```
     /// use compute_heavy_future_executor::global_strategy_builder;
-    /// use compute_heavy_future_executor::spawn_compute_heavy_future;
+    /// use compute_heavy_future_executor::run_compute_heavy_future;
     /// use compute_heavy_future_executor::CustomExecutorClosure;
     ///
     /// // this isn't actually a good strategy, to be clear
@@ -380,7 +380,7 @@ impl GlobalStrategyBuilder {
     ///     5
     ///  };
     ///
-    /// let res = spawn_compute_heavy_future(future).await.unwrap();
+    /// let res = run_compute_heavy_future(future).await.unwrap();
     /// assert_eq!(res, 5);
     /// # }
     ///
@@ -513,20 +513,20 @@ impl Default for &ExecutorStrategyImpl {
 ///
 /// ```
 /// # async fn run() {
-/// use compute_heavy_future_executor::spawn_compute_heavy_future;
+/// use compute_heavy_future_executor::run_compute_heavy_future;
 ///
 /// let future = async {
 ///     std::thread::sleep(std::time::Duration::from_millis(50));
 ///     5
 ///  };
 ///
-/// let res = spawn_compute_heavy_future(future).await.unwrap();
+/// let res = run_compute_heavy_future(future).await.unwrap();
 /// assert_eq!(res, 5);
 /// # }
 ///
 /// ```
 ///
-pub async fn spawn_compute_heavy_future<F, R>(fut: F) -> Result<R, Error>
+pub async fn run_compute_heavy_future<F, R>(fut: F) -> Result<R, Error>
 where
     F: Future<Output = R> + Send + 'static,
     R: Send + 'static,

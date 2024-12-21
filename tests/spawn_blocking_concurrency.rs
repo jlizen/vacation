@@ -3,7 +3,7 @@
 async fn spawn_blocking_concurrency() {
     use std::time::Duration;
 
-    use compute_heavy_future_executor::{global_strategy_builder, spawn_compute_heavy_future};
+    use compute_heavy_future_executor::{global_strategy_builder, run_compute_heavy_future};
     use futures_util::future::join_all;
 
     global_strategy_builder()
@@ -18,7 +18,7 @@ async fn spawn_blocking_concurrency() {
 
     for _ in 0..5 {
         let future = async move { std::thread::sleep(Duration::from_millis(15)) };
-        futures.push(spawn_compute_heavy_future(future));
+        futures.push(run_compute_heavy_future(future));
     }
 
     join_all(futures).await;

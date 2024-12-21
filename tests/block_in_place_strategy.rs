@@ -2,7 +2,7 @@
 #[tokio::test(flavor = "multi_thread")]
 async fn block_in_place_strategy() {
     use compute_heavy_future_executor::{
-        global_strategy, global_strategy_builder, spawn_compute_heavy_future, CurrentStrategy,
+        global_strategy, global_strategy_builder, run_compute_heavy_future, CurrentStrategy,
         ExecutorStrategy,
     };
 
@@ -13,7 +13,7 @@ async fn block_in_place_strategy() {
 
     let future = async { 5 };
 
-    let res = spawn_compute_heavy_future(future).await.unwrap();
+    let res = run_compute_heavy_future(future).await.unwrap();
     assert_eq!(res, 5);
 
     assert_eq!(
