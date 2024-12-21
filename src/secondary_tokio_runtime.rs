@@ -25,7 +25,7 @@ fn default_thread_count() -> usize {
 ///
 /// ```
 /// use compute_heavy_future_executor::global_strategy_builder;
-/// use compute_heavy_future_executor::spawn_compute_heavy_future;
+/// use compute_heavy_future_executor::run_compute_heavy_future;
 ///
 /// # async fn run() {
 /// global_strategy_builder().unwrap().secondary_tokio_runtime_builder()
@@ -110,7 +110,7 @@ impl SecondaryTokioRuntimeStrategyBuilder {
     /// Set the max number of simultaneous futures processed by this executor.
     ///
     /// Yes, the future is dropped if the caller drops the returned future from
-    ///[`spawn_compute_heavy_future()`].
+    ///[`run_compute_heavy_future()`].
     ///
     /// ## Default
     /// No maximum concurrency

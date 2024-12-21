@@ -3,7 +3,7 @@
 async fn spawn_blocking_strategy_cancellable() {
     use std::time::Duration;
 
-    use compute_heavy_future_executor::{global_strategy_builder, spawn_compute_heavy_future};
+    use compute_heavy_future_executor::{global_strategy_builder, run_compute_heavy_future};
     use tokio::select;
 
     global_strategy_builder()
@@ -21,7 +21,7 @@ async fn spawn_blocking_strategy_cancellable() {
 
     select! {
         _ = tokio::time::sleep(Duration::from_millis(4)) => { },
-        _ = spawn_compute_heavy_future(future) => {}
+        _ = run_compute_heavy_future(future) => {}
     }
 
     tokio::time::sleep(Duration::from_millis(8)).await;
