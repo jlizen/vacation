@@ -31,6 +31,7 @@ use tokio::{select, sync::oneshot::Receiver};
 
 /// Initialize a builder to set the global compute heavy future
 /// executor strategy.
+#[must_use = "doesn't do anything unless used"]
 pub fn global_strategy_builder() -> GlobalStrategyBuilder {
     GlobalStrategyBuilder::default()
 }
@@ -44,8 +45,7 @@ pub fn global_strategy() -> CurrentStrategy {
     }
 }
 
-#[must_use]
-#[derive(Default)]
+#[must_use = "doesn't do anything unless used"]#[derive(Default)]
 pub struct GlobalStrategyBuilder {
     max_concurrency: Option<usize>,
 }
@@ -309,6 +309,7 @@ impl GlobalStrategyBuilder {
     /// # }
     /// ```
     #[cfg(feature = "secondary_tokio_runtime")]
+    #[must_use = "doesn't do anything unless used"]
     pub fn secondary_tokio_runtime_builder(self) -> SecondaryTokioRuntimeStrategyBuilder {
         SecondaryTokioRuntimeStrategyBuilder::new(self.max_concurrency)
     }

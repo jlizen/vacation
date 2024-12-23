@@ -37,7 +37,7 @@ fn default_thread_count() -> usize {
 ///     .unwrap();
 /// # }
 /// ```
-#[must_use]
+#[must_use = "doesn't do anything unless used"]
 #[derive(Default)]
 pub struct SecondaryTokioRuntimeStrategyBuilder {
     niceness: Option<i8>,
