@@ -45,7 +45,8 @@ pub fn global_strategy() -> CurrentStrategy {
     }
 }
 
-#[must_use = "doesn't do anything unless used"]#[derive(Default)]
+#[must_use = "doesn't do anything unless used"]
+#[derive(Default)]
 pub struct GlobalStrategyBuilder {
     max_concurrency: Option<usize>,
 }
