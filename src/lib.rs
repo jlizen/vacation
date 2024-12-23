@@ -555,6 +555,10 @@ where
     let (mut tx, rx) = tokio::sync::oneshot::channel();
     let wrapped_future = async {
         select! {
+            // if tx is closed, we always want to poll that future first,
+            // so we don't need to add rng
+            biased;
+
             _ = tx.closed() => {
                 // receiver already dropped, don't need to do anything
                 // cancel the background future
