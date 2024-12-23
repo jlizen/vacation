@@ -6,8 +6,6 @@ pub(crate) struct CurrentContextExecutor {
 
 impl CurrentContextExecutor {
     pub(crate) fn new(max_concurrency: Option<usize>) -> Self {
-        log::info!("initializing compute-heavy executor with current context strategy, max concurrency: {:#?}", max_concurrency);
-
         Self {
             concurrency_limit: ConcurrencyLimit::new(max_concurrency),
         }

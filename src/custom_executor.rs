@@ -25,11 +25,6 @@ pub(crate) struct CustomExecutor {
 
 impl CustomExecutor {
     pub(crate) fn new(closure: CustomExecutorClosure, max_concurrency: Option<usize>) -> Self {
-        log::info!(
-            "initializing compute-heavy executor with custom strategy, max concurrency: {:#?}",
-            max_concurrency
-        );
-
         Self {
             closure,
             concurrency_limit: ConcurrencyLimit::new(max_concurrency),

@@ -12,18 +12,16 @@ pub(crate) struct BlockInPlaceExecutor {
 
 impl BlockInPlaceExecutor {
     pub(crate) fn new(max_concurrency: Option<usize>) -> Result<Self, Error> {
-        log::info!("initializing compute-heavy executor with block in place strategy, max concurrency: {:#?}", max_concurrency);
-
         match Handle::current().runtime_flavor() {
-            RuntimeFlavor::MultiThread => (),
+            RuntimeFlavor::MultiThread => Ok(()),
             #[cfg(tokio_unstable)]
-            RuntimeFlavor::MultiThreadAlt => (),
+            RuntimeFlavor::MultiThreadAlt => Ok(()),
             flavor => Err(Error::InvalidConfig(InvalidConfig {
-                field: "current tokio runtime",
+                field: "current tokio runtime flavor",
                 received: format!("{flavor:#?}"),
-                allowed: "MultiThread",
+                expected: "MultiThread",
             }))?,
-        };
+        }?;
 
         Ok(Self {
             concurrency_limit: ConcurrencyLimit::new(max_concurrency),

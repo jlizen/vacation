@@ -5,8 +5,7 @@ use tokio::sync::mpsc::Sender;
 use crate::{
     concurrency_limit::ConcurrencyLimit,
     error::{Error, InvalidConfig},
-    make_future_cancellable, ComputeHeavyFutureExecutor, ExecutorStrategyImpl,
-    COMPUTE_HEAVY_FUTURE_EXECUTOR_STRATEGY,
+    make_future_cancellable, set_strategy, ComputeHeavyFutureExecutor, ExecutorStrategyImpl,
 };
 
 const DEFAULT_NICENESS: i8 = 10;
@@ -25,11 +24,12 @@ fn default_thread_count() -> usize {
 ///
 /// ```
 /// use compute_heavy_future_executor::global_strategy_builder;
-/// use compute_heavy_future_executor::run_compute_heavy_future;
+/// use compute_heavy_future_executor::execute_compute_heavy_future;
 ///
 /// # async fn run() {
-/// global_strategy_builder().unwrap().secondary_tokio_runtime_builder()
-///     .niceness(1).unwrap()
+/// global_strategy_builder()
+///     .secondary_tokio_runtime_builder()
+///     .niceness(1)
 ///     .thread_count(2)
 ///     .channel_size(3)
 ///     .max_concurrency(4)
@@ -66,20 +66,11 @@ impl SecondaryTokioRuntimeStrategyBuilder {
     /// ## Default
     ///
     /// The default value is 10.
-    pub fn niceness(self, niceness: i8) -> Result<Self, Error> {
-        // please https://github.com/rust-lang/rfcs/issues/671
-        if !(-20..=19).contains(&niceness) {
-            return Err(Error::InvalidConfig(InvalidConfig {
-                field: "niceness",
-                received: niceness.to_string(),
-                allowed: "-20..=19",
-            }));
-        }
-
-        Ok(Self {
+    pub fn niceness(self, niceness: i8) -> Self {
+        Self {
             niceness: Some(niceness),
             ..self
-        })
+        }
     }
 
     /// Set the count of worker threads in the secondary tokio runtime.
@@ -110,7 +101,7 @@ impl SecondaryTokioRuntimeStrategyBuilder {
     /// Set the max number of simultaneous futures processed by this executor.
     ///
     /// Yes, the future is dropped if the caller drops the returned future from
-    ///[`run_compute_heavy_future()`].
+    ///[`execute_compute_heavy_future()`].
     ///
     /// ## Default
     /// No maximum concurrency
@@ -123,11 +114,18 @@ impl SecondaryTokioRuntimeStrategyBuilder {
 
     pub fn initialize(self) -> Result<(), Error> {
         let niceness = self.niceness.unwrap_or(DEFAULT_NICENESS);
+
+        // please https://github.com/rust-lang/rfcs/issues/671
+        if !(-20..=19).contains(&niceness) {
+            return Err(Error::InvalidConfig(InvalidConfig {
+                field: "niceness",
+                received: niceness.to_string(),
+                expected: "-20..=19",
+            }));
+        }
+
         let thread_count = self.thread_count.unwrap_or_else(|| default_thread_count());
         let channel_size = self.channel_size.unwrap_or(DEFAULT_CHANNEL_SIZE);
-
-        log::info!("initializing compute-heavy executor with secondary tokio runtime strategy \
-        and niceness {niceness}, thread_count {thread_count}, channel_size {channel_size}, max concurrency {:#?}", self.max_concurrency);
 
         let executor = SecondaryTokioRuntimeExecutor::new(
             niceness,
@@ -136,13 +134,7 @@ impl SecondaryTokioRuntimeStrategyBuilder {
             self.max_concurrency,
         );
 
-        COMPUTE_HEAVY_FUTURE_EXECUTOR_STRATEGY
-            .set(ExecutorStrategyImpl::SecondaryTokioRuntime(executor))
-            .map_err(|_| {
-                Error::AlreadyInitialized(
-                    COMPUTE_HEAVY_FUTURE_EXECUTOR_STRATEGY.get().unwrap().into(),
-                )
-            })
+        set_strategy(ExecutorStrategyImpl::SecondaryTokioRuntime(executor))
     }
 }
 
