@@ -18,7 +18,7 @@ pub enum Error {
 pub struct InvalidConfig {
     pub field: &'static str,
     pub received: String,
-    pub allowed: &'static str,
+    pub expected: &'static str,
 }
 
 impl fmt::Display for Error {
