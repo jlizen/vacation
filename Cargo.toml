@@ -8,17 +8,27 @@ homepage = "https://github.com/jlizen/compute-heavy-future-executor"
 rust-version = "1.70"
 exclude = ["/.github", "/examples", "/scripts"]
 readme = "README.md"
-description = "Additional executor patterns for use handling compute-bounded, blocking futures."
+description = "Additional executor patterns for handling compute-bounded, blocking futures."
 categories = ["asynchronous"]
 
-[dependencies]
-log = "0.4.22"
+[features]
+tokio = ["tokio/rt"]
+tokio_block_in_place = ["tokio", "tokio/rt-multi-thread"]
+secondary_tokio_runtime = ["tokio", "tokio/rt-multi-thread", "dep:libc", "dep:num_cpus"]
 
-[target.'cfg(compute_heavy_executor_tokio)'.dependencies]
-tokio = { version = "1.0", features = ["rt", "rt-multi-thread", "macros", "sync"]}
-libc = { version = "0.2.168"}
-num_cpus = { version = "1.0"}
+[dependencies]
+libc = { version = "0.2.168", optional = true }
+log = "0.4.22"
+num_cpus = { version = "1.0", optional = true }
+tokio = { version = "1.0", features = ["macros", "sync"] }
+
+[dev-dependencies]
+tokio = { version = "1.0", features = ["full"]}
+futures-util = "0.3.31"
+
+[package.metadata.docs.rs]
+all-features = true
+
 
 [lints.rust]
-# calling libraries can use the convention of `cfg(compute_heavy_executor)` to enable usage of this crate
-unexpected_cfgs = { level = "warn", check-cfg = ['cfg(compute_heavy_executor)', 'cfg(compute_heavy_executor_tokio)'] }
+unexpected_cfgs = { level = "warn", check-cfg = ['cfg(tokio_unstable)'] }

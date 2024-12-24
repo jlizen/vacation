@@ -1,2 +1,2 @@
 # compute-heavy-future-executor
-Experimental crate for adding special handling for frequently blocking futures
+Experimental crate that adds additional executor patterns to use with frequently blocking futures.
