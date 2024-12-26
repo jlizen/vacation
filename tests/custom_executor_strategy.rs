@@ -1,33 +1,38 @@
-use std::time::Duration;
+use std::{sync::OnceLock, time::Duration};
 
 use compute_heavy_future_executor::{
-    execute_compute_heavy_future, global_strategy_builder, CustomExecutorClosure,
+    execute_sync, global_sync_strategy_builder, CustomExecutorSyncClosure,
 };
 use futures_util::future::join_all;
-use tokio::select;
+use rayon::ThreadPool;
+
+static THREADPOOL: OnceLock<ThreadPool> = OnceLock::new();
 
 fn initialize() {
-    let closure: CustomExecutorClosure = Box::new(|fut| {
+    THREADPOOL.get_or_init(|| rayon::ThreadPoolBuilder::default().build().unwrap());
+
+    let custom_closure: CustomExecutorSyncClosure = Box::new(|f| {
         Box::new(async move {
-            tokio::task::spawn(async move { fut.await })
-                .await
-                .map_err(|err| err.into())
+            THREADPOOL.get().unwrap().spawn(f);
+            Ok(())
         })
     });
 
-    // we are racing all tests against the single oncelock
-    let _ = global_strategy_builder()
+    let _ = global_sync_strategy_builder()
         .max_concurrency(3)
-        .initialize_custom_executor(closure);
+        .initialize_custom_executor(custom_closure);
 }
 
 #[tokio::test]
 async fn custom_executor_strategy() {
     initialize();
 
-    let future = async { 5 };
+    let closure = || {
+        std::thread::sleep(Duration::from_millis(15));
+        5
+    };
 
-    let res = execute_compute_heavy_future(future).await.unwrap();
+    let res = execute_sync(closure).await.unwrap();
     assert_eq!(res, 5);
 }
 
@@ -39,10 +44,15 @@ async fn custom_executor_concurrency() {
 
     let mut futures = Vec::new();
 
-    for _ in 0..5 {
-        // can't use std::thread::sleep because this is all in the same thread
-        let future = async move { tokio::time::sleep(Duration::from_millis(15)).await };
-        futures.push(execute_compute_heavy_future(future));
+    let closure = || {
+        std::thread::sleep(Duration::from_millis(15));
+        5
+    };
+    tokio::time::sleep(Duration::from_millis(5)).await;
+
+    // note that we also are racing against concurrency from other tests in this module
+    for _ in 0..6 {
+        futures.push(execute_sync(closure));
     }
 
     join_all(futures).await;
@@ -51,30 +61,4 @@ async fn custom_executor_concurrency() {
     assert!(elapsed_millis < 50, "futures did not run concurrently");
 
     assert!(elapsed_millis > 20, "futures exceeded max concurrency");
-}
-
-#[tokio::test]
-async fn custom_executor_cancellable() {
-    initialize();
-
-    let (tx, mut rx) = tokio::sync::oneshot::channel::<()>();
-    let future = async move {
-        {
-            tokio::time::sleep(Duration::from_secs(60)).await;
-            let _ = tx.send(());
-        }
-    };
-
-    select! {
-        _ = tokio::time::sleep(Duration::from_millis(4)) => { },
-        _ = execute_compute_heavy_future(future) => {}
-    }
-
-    tokio::time::sleep(Duration::from_millis(8)).await;
-
-    // future should have been cancelled when spawn compute heavy future was dropped
-    assert_eq!(
-        rx.try_recv(),
-        Err(tokio::sync::oneshot::error::TryRecvError::Closed)
-    );
 }

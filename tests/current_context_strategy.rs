@@ -1,15 +1,14 @@
 use std::time::Duration;
 
 use compute_heavy_future_executor::{
-    execute_compute_heavy_future, global_strategy, global_strategy_builder, CurrentStrategy,
-    ExecutorStrategy,
+    execute_sync, global_sync_strategy, global_sync_strategy_builder, ExecutorStrategy,
+    GlobalStrategy,
 };
 use futures_util::future::join_all;
-use tokio::select;
 
 fn initialize() {
     // we are racing all tests against the single oncelock
-    let _ = global_strategy_builder()
+    let _ = global_sync_strategy_builder()
         .max_concurrency(3)
         .initialize_current_context();
 }
@@ -18,44 +17,21 @@ fn initialize() {
 async fn current_context_strategy() {
     initialize();
 
-    let future = async { 5 };
+    let closure = || {
+        std::thread::sleep(Duration::from_millis(15));
+        5
+    };
 
-    let res = execute_compute_heavy_future(future).await.unwrap();
+    let res = execute_sync(closure).await.unwrap();
     assert_eq!(res, 5);
 
     assert_eq!(
-        global_strategy(),
-        CurrentStrategy::Initialized(ExecutorStrategy::CurrentContext)
+        global_sync_strategy(),
+        GlobalStrategy::Initialized(ExecutorStrategy::CurrentContext)
     );
 }
 
-#[tokio::test]
-async fn current_context_cancellable() {
-    initialize();
-
-    let (tx, mut rx) = tokio::sync::oneshot::channel::<()>();
-    let future = async move {
-        {
-            tokio::time::sleep(Duration::from_secs(60)).await;
-            let _ = tx.send(());
-        }
-    };
-
-    select! {
-        _ = tokio::time::sleep(Duration::from_millis(4)) => { },
-        _ = execute_compute_heavy_future(future) => {}
-    }
-
-    tokio::time::sleep(Duration::from_millis(8)).await;
-
-    // future should have been cancelled when spawn compute heavy future was dropped
-    assert_eq!(
-        rx.try_recv(),
-        Err(tokio::sync::oneshot::error::TryRecvError::Closed)
-    );
-}
-
-#[tokio::test]
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
 async fn current_context_concurrency() {
     initialize();
 
@@ -63,11 +39,19 @@ async fn current_context_concurrency() {
 
     let mut futures = Vec::new();
 
-    for _ in 0..5 {
-        // can't use std::thread::sleep because this is all in the same thread
-        let future = async move { tokio::time::sleep(Duration::from_millis(15)).await };
-        futures.push(execute_compute_heavy_future(future));
+    let closure = || {
+        std::thread::sleep(Duration::from_millis(15));
+        5
+    };
+
+    // note that we also are racing against concurrency from other tests in this module
+    for _ in 0..6 {
+        // we need to spawn tasks since otherwise we'll just block the current worker thread
+        let future =
+            async move { tokio::task::spawn(async move { execute_sync(closure).await }).await };
+        futures.push(future);
     }
+    tokio::time::sleep(Duration::from_millis(5)).await;
 
     join_all(futures).await;
 

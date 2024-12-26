@@ -6,28 +6,28 @@ license = "MIT"
 repository = "https://github.com/jlizen/compute-heavy-future-executor"
 homepage = "https://github.com/jlizen/compute-heavy-future-executor"
 rust-version = "1.70"
-exclude = ["/.github", "/examples", "/scripts"]
+exclude = ["/.github", "/Exampless", "/scripts"]
 readme = "README.md"
-description = "Additional executor patterns for handling compute-bounded, blocking futures."
+description = "Executor patterns for handling compute-bounded calls inside async contexts."
 categories = ["asynchronous"]
 
 [features]
-tokio = ["tokio/rt"]
-tokio_block_in_place = ["tokio", "tokio/rt-multi-thread"]
-secondary_tokio_runtime = ["tokio", "tokio/rt-multi-thread", "dep:libc", "dep:num_cpus"]
+default = ["tokio"]
+tokio = ["tokio/rt",]
 
 [dependencies]
-libc = { version = "0.2.168", optional = true }
 log = "0.4.22"
-num_cpus = { version = "1.0", optional = true }
-tokio = { version = "1.0", features = ["macros", "sync"] }
+num_cpus = "1.0"
+tokio = { version = "1.0", features = ["sync"] }
 
 [dev-dependencies]
-tokio = { version = "1.0", features = ["full"]}
+tokio = { version = "1", features = ["full"]}
 futures-util = "0.3.31"
+rayon = "1"
 
 [package.metadata.docs.rs]
 all-features = true
+rustdoc-args = ["--cfg", "docsrs"]
 
 
 [lints.rust]
