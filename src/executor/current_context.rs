@@ -1,4 +1,6 @@
-use crate::{concurrency_limit::ConcurrencyLimit, error::Error, ComputeHeavyFutureExecutor};
+use crate::{concurrency_limit::ConcurrencyLimit, error::Error};
+
+use super::ExecuteSync;
 
 pub(crate) struct CurrentContextExecutor {
     concurrency_limit: ConcurrencyLimit,
@@ -12,16 +14,15 @@ impl CurrentContextExecutor {
     }
 }
 
-impl ComputeHeavyFutureExecutor for CurrentContextExecutor {
-    async fn execute<F, O>(&self, fut: F) -> Result<O, Error>
+impl ExecuteSync for CurrentContextExecutor {
+    async fn execute_sync<F, R>(&self, f: F) -> Result<R, Error>
     where
-        F: std::future::Future<Output = O> + Send + 'static,
-        O: Send + 'static,
+        F: FnOnce() -> R + Send + 'static,
+        R: Send + 'static,
     {
         let _permit = self.concurrency_limit.acquire_permit().await;
 
-        Ok(fut.await)
-
-        // implicit permit drop
+        Ok(f())
+        // permit implicitly drops
     }
 }

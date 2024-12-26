@@ -1,19 +1,24 @@
 #[cfg(not(feature = "tokio"))]
 #[tokio::test]
-async fn default_to_current_context_tokio_single_threaded() {
+async fn default_to_current_context() {
+    use std::time::Duration;
+
     use compute_heavy_future_executor::{
-        execute_compute_heavy_future, global_strategy, CurrentStrategy, ExecutorStrategy,
+        execute_sync, global_sync_strategy, ExecutorStrategy, GlobalStrategy,
     };
 
     // this is a tokio test but we haven't enabled the tokio config flag
 
-    let future = async { 5 };
+    let closure = || {
+        std::thread::sleep(Duration::from_millis(5));
+        5
+    };
 
-    let res = execute_compute_heavy_future(future).await.unwrap();
+    let res = execute_sync(closure).await.unwrap();
     assert_eq!(res, 5);
 
     assert_eq!(
-        global_strategy(),
-        CurrentStrategy::Default(ExecutorStrategy::CurrentContext)
+        global_sync_strategy(),
+        GlobalStrategy::Default(ExecutorStrategy::CurrentContext)
     );
 }
