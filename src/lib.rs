@@ -223,6 +223,7 @@ pub async fn execute_sync<F, R>(f: F) -> Result<R, Error>
 where
     F: FnOnce() -> R + Send + 'static,
     R: Send + 'static,
+    Error: Send + Sync + 'static
 {
     let executor = get_global_sync_executor();
 
