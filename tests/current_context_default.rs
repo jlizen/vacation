@@ -1,10 +1,8 @@
 #[tokio::test]
-async fn default_to_current_context() {
+async fn default_to_execute_directly() {
     use std::time::Duration;
 
-    use vacation::{
-        execute_sync, global_sync_strategy, ChanceOfBlocking, ExecutorStrategy, GlobalStrategy,
-    };
+    use vacation::{execute, global_strategy, ChanceOfBlocking, ExecutorStrategy, GlobalStrategy};
 
     // this is a tokio test but we haven't enabled the tokio config flag
 
@@ -13,11 +11,11 @@ async fn default_to_current_context() {
         5
     };
 
-    let res = execute_sync(closure, ChanceOfBlocking::High).await.unwrap();
+    let res = execute(closure, ChanceOfBlocking::High).await.unwrap();
     assert_eq!(res, 5);
 
     assert_eq!(
-        global_sync_strategy(),
-        GlobalStrategy::Default(ExecutorStrategy::CurrentContext)
+        global_strategy(),
+        GlobalStrategy::Default(ExecutorStrategy::ExecuteDirectly)
     );
 }
