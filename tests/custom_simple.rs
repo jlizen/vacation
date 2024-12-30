@@ -6,7 +6,7 @@ use vacation::{
 };
 
 #[tokio::test]
-async fn custom_executor_simple() {
+async fn custom_simple() {
     let custom_closure: CustomClosure = Box::new(|f| {
         Box::new(async move {
             f();

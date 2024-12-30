@@ -23,7 +23,7 @@ fn initialize() {
 }
 
 #[tokio::test]
-async fn custom_executor_strategy() {
+async fn custom_strategy() {
     initialize();
 
     let closure = || {
@@ -36,7 +36,7 @@ async fn custom_executor_strategy() {
 }
 
 #[tokio::test]
-async fn custom_executor_concurrency() {
+async fn custom_concurrency() {
     initialize();
 
     let start = std::time::Instant::now();

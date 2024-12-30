@@ -1,11 +1,11 @@
-pub(crate) mod custom_executor;
+pub(crate) mod custom;
 pub(crate) mod execute_directly;
 #[cfg(feature = "tokio")]
 pub(crate) mod spawn_blocking;
 
 use std::sync::OnceLock;
 
-use custom_executor::{Custom, CustomClosure};
+use custom::{Custom, CustomClosure};
 use execute_directly::ExecuteDirectly;
 
 use crate::{init, Error, ExecutorStrategy, GlobalStrategy};
@@ -95,7 +95,7 @@ pub(crate) enum Executor {
     /// A non-op strategy that runs the function in the current context
     ExecuteDirectly(execute_directly::ExecuteDirectly),
     /// User-provided closure
-    Custom(custom_executor::Custom),
+    Custom(custom::Custom),
     /// tokio task::spawn_blocking
     #[cfg(feature = "tokio")]
     SpawnBlocking(spawn_blocking::SpawnBlocking),

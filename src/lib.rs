@@ -10,7 +10,7 @@ mod executor;
 
 pub use error::Error;
 pub use executor::{
-    custom_executor::CustomClosure, global_strategy, install_tokio_strategy, ExecutorBuilder,
+    custom::CustomClosure, global_strategy, install_tokio_strategy, ExecutorBuilder,
 };
 
 use executor::{get_global_executor, Execute, Executor, NoStrategy};
