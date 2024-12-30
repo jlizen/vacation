@@ -2,12 +2,12 @@ use std::future::Future;
 
 use crate::{concurrency_limit::ConcurrencyLimit, error::Error};
 
-use super::ExecuteSync;
+use super::Execute;
 
 /// A closure that accepts an arbitrary sync function and returns a future that executes it.
 /// The Custom Executor will implicitly wrap the input function in a oneshot
 /// channel to erase its input/output type.
-pub type CustomExecutorSyncClosure = Box<
+pub type CustomClosure = Box<
     dyn Fn(
             Box<dyn FnOnce() + Send + 'static>,
         ) -> Box<
@@ -18,13 +18,13 @@ pub type CustomExecutorSyncClosure = Box<
         + Sync,
 >;
 
-pub(crate) struct CustomExecutor {
-    closure: CustomExecutorSyncClosure,
+pub(crate) struct Custom {
+    closure: CustomClosure,
     concurrency_limit: ConcurrencyLimit,
 }
 
-impl CustomExecutor {
-    pub(crate) fn new(closure: CustomExecutorSyncClosure, max_concurrency: Option<usize>) -> Self {
+impl Custom {
+    pub(crate) fn new(closure: CustomClosure, max_concurrency: Option<usize>) -> Self {
         Self {
             closure,
             concurrency_limit: ConcurrencyLimit::new(max_concurrency),
@@ -32,11 +32,11 @@ impl CustomExecutor {
     }
 }
 
-impl ExecuteSync for CustomExecutor {
+impl Execute for Custom {
     // the compiler correctly is pointing out that the custom closure isn't guaranteed to call f.
     // but, we leave that to the implementer to guarantee since we are limited by working with static signatures
     #[allow(unused_variables)]
-    async fn execute_sync<F, R>(&self, f: F) -> Result<R, Error>
+    async fn execute<F, R>(&self, f: F) -> Result<R, Error>
     where
         F: FnOnce() -> R + Send + 'static,
         R: Send + 'static,

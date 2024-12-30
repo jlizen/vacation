@@ -8,7 +8,7 @@ homepage = "https://github.com/jlizen/vacation"
 rust-version = "1.70"
 exclude = ["/.github", "/examples", "/scripts"]
 readme = "README.md"
-description = "Give your (runtime) aworkers a break!"
+description = "Give your (runtime) workers a break!"
 categories = ["asynchronous", "executor"]
 
 [features]

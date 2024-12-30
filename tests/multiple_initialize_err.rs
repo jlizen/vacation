@@ -1,13 +1,11 @@
-use vacation::{global_sync_strategy_builder, Error};
+use vacation::{init, Error};
 
 #[test]
 fn multiple_initialize_err() {
-    global_sync_strategy_builder()
-        .initialize_current_context()
-        .unwrap();
+    init().execute_directly().install().unwrap();
 
     assert!(matches!(
-        global_sync_strategy_builder().initialize_current_context(),
+        init().execute_directly().install(),
         Err(Error::AlreadyInitialized(_))
     ));
 }

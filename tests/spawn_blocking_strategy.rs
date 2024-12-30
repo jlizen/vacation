@@ -5,15 +5,12 @@ mod test {
     use futures_util::future::join_all;
 
     use vacation::{
-        execute_sync, global_sync_strategy, global_sync_strategy_builder, ChanceOfBlocking,
-        ExecutorStrategy, GlobalStrategy,
+        execute, global_strategy, init, ChanceOfBlocking, ExecutorStrategy, GlobalStrategy,
     };
 
     fn initialize() {
         // we are racing all tests against the single oncelock
-        let _ = global_sync_strategy_builder()
-            .max_concurrency(3)
-            .initialize_spawn_blocking();
+        let _ = init().max_concurrency(3).spawn_blocking().install();
     }
 
     #[tokio::test]
@@ -25,11 +22,11 @@ mod test {
             5
         };
 
-        let res = execute_sync(closure, ChanceOfBlocking::High).await.unwrap();
+        let res = execute(closure, ChanceOfBlocking::High).await.unwrap();
         assert_eq!(res, 5);
 
         assert_eq!(
-            global_sync_strategy(),
+            global_strategy(),
             GlobalStrategy::Initialized(ExecutorStrategy::SpawnBlocking)
         );
     }
@@ -48,7 +45,7 @@ mod test {
 
         // note that we also are racing against concurrency from other tests in this module
         for _ in 0..6 {
-            let future = async move { execute_sync(closure, ChanceOfBlocking::High).await };
+            let future = async move { execute(closure, ChanceOfBlocking::High).await };
             futures.push(future);
         }
         tokio::time::sleep(Duration::from_millis(5)).await;

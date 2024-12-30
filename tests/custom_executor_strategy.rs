@@ -2,25 +2,24 @@ use std::{sync::OnceLock, time::Duration};
 
 use futures_util::future::join_all;
 use rayon::ThreadPool;
-use vacation::{
-    execute_sync, global_sync_strategy_builder, ChanceOfBlocking, CustomExecutorSyncClosure,
-};
+use vacation::{execute, init, ChanceOfBlocking, CustomClosure};
 
 static THREADPOOL: OnceLock<ThreadPool> = OnceLock::new();
 
 fn initialize() {
     THREADPOOL.get_or_init(|| rayon::ThreadPoolBuilder::default().build().unwrap());
 
-    let custom_closure: CustomExecutorSyncClosure = Box::new(|f| {
+    let custom_closure: CustomClosure = Box::new(|f| {
         Box::new(async move {
             THREADPOOL.get().unwrap().spawn(f);
             Ok(())
         })
     });
 
-    let _ = global_sync_strategy_builder()
+    let _ = init()
         .max_concurrency(3)
-        .initialize_custom_executor(custom_closure);
+        .custom_executor(custom_closure)
+        .install();
 }
 
 #[tokio::test]
@@ -32,7 +31,7 @@ async fn custom_executor_strategy() {
         5
     };
 
-    let res = execute_sync(closure, ChanceOfBlocking::High).await.unwrap();
+    let res = execute(closure, ChanceOfBlocking::High).await.unwrap();
     assert_eq!(res, 5);
 }
 
@@ -52,7 +51,7 @@ async fn custom_executor_concurrency() {
 
     // note that we also are racing against concurrency from other tests in this module
     for _ in 0..6 {
-        futures.push(execute_sync(closure, ChanceOfBlocking::High));
+        futures.push(execute(closure, ChanceOfBlocking::High));
     }
 
     join_all(futures).await;

@@ -1,12 +1,12 @@
 use crate::{concurrency_limit::ConcurrencyLimit, error::Error};
 
-use super::ExecuteSync;
+use super::Execute;
 
-pub(crate) struct CurrentContextExecutor {
+pub(crate) struct ExecuteDirectly {
     concurrency_limit: ConcurrencyLimit,
 }
 
-impl CurrentContextExecutor {
+impl ExecuteDirectly {
     pub(crate) fn new(max_concurrency: Option<usize>) -> Self {
         Self {
             concurrency_limit: ConcurrencyLimit::new(max_concurrency),
@@ -14,8 +14,8 @@ impl CurrentContextExecutor {
     }
 }
 
-impl ExecuteSync for CurrentContextExecutor {
-    async fn execute_sync<F, R>(&self, f: F) -> Result<R, Error>
+impl Execute for ExecuteDirectly {
+    async fn execute<F, R>(&self, f: F) -> Result<R, Error>
     where
         F: FnOnce() -> R + Send + 'static,
         R: Send + 'static,

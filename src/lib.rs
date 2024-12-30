@@ -5,11 +5,11 @@
 
 //! # vacation
 //!
-//!  `vacation``: give your (runtime) aworkers a break!
+//!  `vacation``: Give your (runtime) workers a break!
 //!
 //! ## Overview
 //!
-//! Today, when library authors are writing async APIs, they don't have a good way to handle long-running sync segments.
+//! Today, when library authors write async APIs, they don't have a good way to handle long-running sync segments.
 //!
 //! For an application, they can use selective handling such as `tokio::task::spawn_blocking()` along with concurrency control to delegate sync segments to blocking threads. Or, they might send the work to a `rayon` threadpool.
 //!
@@ -30,11 +30,9 @@
 //! vacation = { version = "0.1", default-features = false }
 //! ```
 //!
-//! And then wrap any sync work by passing it as a closure to a global `execute_sync()` call:
+//! And then wrap any sync work by passing it as a closure to a global `execute()` call:
 //!
 //! ```
-//! use vacation::{execute_sync, ChanceOfBlocking};
-//!
 //! fn sync_work(input: String)-> u8 {
 //!     std::thread::sleep(std::time::Duration::from_secs(5));
 //!     println!("{input}");
@@ -42,9 +40,9 @@
 //! }
 //!
 //! pub async fn a_future_that_has_blocking_sync_work() -> u8 {
-//!     // relies on caller-specified strategy for translating execute_sync into a future that won't
+//!     // relies on caller-specified strategy for translating execute into a future that won't
 //!     // block the current worker thread
-//!     execute_sync(move || { sync_work("foo".to_string()) }, ChanceOfBlocking::High).await.unwrap()
+//!     vacation::execute(move || { sync_work("foo".to_string()) }, vacation::ChanceOfBlocking::High).await.unwrap()
 //! }
 //!
 //! ```
@@ -53,7 +51,7 @@
 //! Application authors will need to add this library as a a direct dependency in order to customize the execution strategy.
 //! By default, the strategy is just a non-op.
 //!
-//! You can customize the strategy using the [`SyncExecutorBuilder`] or [`initialize_tokio()`].
+//! You can customize the strategy using the [`ExecutorBuilder`] or [`install_tokio_strategy()`].
 //!
 //! ### Simple example
 //!
@@ -63,13 +61,11 @@
 //! vacation = { version = "0.1" }
 //! ```
 //!
-//! And then call the `initialize_tokio()` helper that uses some sensible defaults:
+//! And then call the `install_tokio_strategy()` helper that uses some sensible defaults:
 //! ```ignore
-//! use vacation::initialize_tokio;
-//!
 //! #[tokio::main]
 //! async fn main() {
-//!     initialize_tokio().unwrap();
+//!     vacation::install_tokio_strategy().unwrap();
 //! }
 //! ```
 //!
@@ -87,22 +83,18 @@
 //! use std::sync::OnceLock;
 //! use rayon::ThreadPool;
 //!
-//! use vacation::{
-//!     global_sync_strategy_builder, CustomExecutorSyncClosure,
-//! };
-//!
 //! static THREADPOOL: OnceLock<ThreadPool> = OnceLock::new();
 //!
 //! fn initialize_strategy() {
 //!     THREADPOOL.set(rayon::ThreadPoolBuilder::default().build().unwrap());
 //!
-//!     let custom_closure: CustomExecutorSyncClosure =
+//!     let custom_closure: vacation::CustomClosure =
 //!         Box::new(|f| Box::new(async move { Ok(THREADPOOL.get().unwrap().spawn(f)) }));
 //!
-//!     global_sync_strategy_builder()
+//!     vacation::init()
 //!         // probably no need for max concurrency as rayon already is defaulting to a thread per core
 //!         // and using a task queue
-//!         .initialize_custom_executor(custom_closure).unwrap();
+//!         .custom_executor(custom_closure).install().unwrap();
 //! }
 //! ```
 //!
@@ -120,11 +112,10 @@ mod executor;
 
 pub use error::Error;
 pub use executor::{
-    custom_executor::CustomExecutorSyncClosure, global_sync_strategy, initialize_tokio,
-    SyncExecutorBuilder,
+    custom_executor::CustomClosure, global_strategy, install_tokio_strategy, ExecutorBuilder,
 };
 
-use executor::{get_global_sync_executor, ExecuteSync, SyncExecutor};
+use executor::{get_global_executor, Execute, Executor, NoStrategy};
 
 use std::fmt::Debug;
 
@@ -138,14 +129,13 @@ pub enum GlobalStrategy {
 }
 
 /// The different types of executor strategies that can be loaded.
-/// See [`SyncExecutorBuilder`] for more detail on each strategy.
+/// See [`ExecutorBuilder`] for more detail on each strategy.
 ///
 /// # Examples
 ///
 /// ```
 /// use vacation::{
-///     global_sync_strategy,
-///     global_sync_strategy_builder,
+///     global_strategy,
 ///     GlobalStrategy,
 ///     ExecutorStrategy
 /// };
@@ -153,16 +143,17 @@ pub enum GlobalStrategy {
 /// # fn run() {
 ///
 /// #[cfg(feature = "tokio")]
-/// assert_eq!(global_sync_strategy(), GlobalStrategy::Default(ExecutorStrategy::SpawnBlocking));
+/// assert_eq!(global_strategy(), GlobalStrategy::Default(ExecutorStrategy::SpawnBlocking));
 ///
 /// #[cfg(not(feature = "tokio"))]
-/// assert_eq!(global_sync_strategy(), GlobalStrategy::Default(ExecutorStrategy::CurrentContext));
+/// assert_eq!(global_strategy(), GlobalStrategy::Default(ExecutorStrategy::ExecuteDirectly));
 ///
-/// global_sync_strategy_builder()
-///         .initialize_current_context()
+/// vacation::init()
+///         .execute_directly()
+///         .install()
 ///         .unwrap();
 ///
-/// assert_eq!(global_sync_strategy(), GlobalStrategy::Initialized(ExecutorStrategy::CurrentContext));
+/// assert_eq!(global_strategy(), GlobalStrategy::Initialized(ExecutorStrategy::ExecuteDirectly));
 ///
 /// # }
 /// ```
@@ -170,9 +161,9 @@ pub enum GlobalStrategy {
 #[derive(Debug, Clone, Copy, PartialEq)]
 pub enum ExecutorStrategy {
     /// A non-op strategy that awaits in the current context
-    CurrentContext,
+    ExecuteDirectly,
     /// User-provided closure
-    CustomExecutor,
+    Custom,
     /// tokio task::spawn_blocking
     #[cfg(feature = "tokio")]
     SpawnBlocking,
@@ -181,19 +172,21 @@ pub enum ExecutorStrategy {
 /// Initialize a builder to set the global sync function
 /// executor strategy.
 ///
-/// See [`SyncExecutorBuilder`] for details on strategies.
+/// See [`ExecutorBuilder`] for details on strategies.
 ///
 /// # Examples
 ///
 /// ```
-/// use vacation::global_sync_strategy_builder;
 /// # fn run() {
-/// global_sync_strategy_builder().max_concurrency(3).initialize_spawn_blocking().unwrap();
+/// vacation::init().max_concurrency(3).spawn_blocking().install().unwrap();
 /// # }
 /// ```
 #[must_use = "doesn't do anything unless used"]
-pub fn global_sync_strategy_builder() -> SyncExecutorBuilder {
-    SyncExecutorBuilder::default()
+pub fn init() -> ExecutorBuilder<NoStrategy> {
+    ExecutorBuilder {
+        strategy: NoStrategy,
+        max_concurrency: None,
+    }
 }
 
 /// Likelihood of the provided closure blocking for a significant period of time.
@@ -208,41 +201,39 @@ pub enum ChanceOfBlocking {
 ///
 /// # Strategy selection
 ///
-/// If no strategy is configured, this library will fall back to a non-op `CurrentContext` strategy.
+/// If no strategy is configured, this library will fall back to a non-op `ExecuteDirectly` strategy.
 ///
-/// You can override these defaults by initializing a strategy via [`global_sync_strategy_builder()`]
-/// and [`SyncExecutorBuilder`].
+/// You can override these defaults by initializing a strategy via [`init()`]
+/// and [`ExecutorBuilder`].
 ///
 /// # Examples
 ///
 /// ```
 /// # async fn run() {
-/// use vacation::{execute_sync, ChanceOfBlocking};
-///
 /// let closure = || {
 ///     std::thread::sleep(std::time::Duration::from_secs(1));
 ///     5
 /// };
 ///
-/// let res = execute_sync(closure, ChanceOfBlocking::High).await.unwrap();
+/// let res = vacation::execute(closure, vacation::ChanceOfBlocking::High).await.unwrap();
 /// assert_eq!(res, 5);
 /// # }
 ///
 /// ```
 ///
-pub async fn execute_sync<F, R>(f: F, _chance_of_blocking: ChanceOfBlocking) -> Result<R, Error>
+pub async fn execute<F, R>(f: F, _chance_of_blocking: ChanceOfBlocking) -> Result<R, Error>
 where
     F: FnOnce() -> R + Send + 'static,
     R: Send + 'static,
     Error: Send + Sync + 'static,
 {
-    let executor = get_global_sync_executor();
+    let executor = get_global_executor();
 
     match executor {
-        SyncExecutor::CurrentContext(executor) => executor.execute_sync(f).await,
-        SyncExecutor::CustomExecutor(executor) => executor.execute_sync(f).await,
+        Executor::ExecuteDirectly(executor) => executor.execute(f).await,
+        Executor::Custom(executor) => executor.execute(f).await,
         #[cfg(feature = "tokio")]
-        SyncExecutor::SpawnBlocking(executor) => executor.execute_sync(f).await,
+        Executor::SpawnBlocking(executor) => executor.execute(f).await,
     }
 }
 
