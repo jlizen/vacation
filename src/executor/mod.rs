@@ -65,14 +65,23 @@ fn set_global_strategy(strategy: Executor) -> Result<(), Error> {
 pub fn global_strategy() -> GlobalStrategy {
     match GLOBAL_EXECUTOR_STRATEGY.get() {
         Some(strategy) => GlobalStrategy::Initialized(strategy.into()),
-        None => GlobalStrategy::Default(<&Executor>::default().into()),
+        None => GlobalStrategy::Default(get_default_strategy().into()),
     }
 }
 
 pub(crate) fn get_global_executor() -> &'static Executor {
     GLOBAL_EXECUTOR_STRATEGY
         .get()
-        .unwrap_or_else(|| <&Executor>::default())
+        .unwrap_or_else(|| get_default_strategy())
+}
+
+pub(crate) fn get_default_strategy() -> &'static Executor {
+    DEFAULT_GLOBAL_EXECUTOR_STRATEGY.get_or_init(|| {
+        log::warn!(
+            "Defaulting to ExecuteDirectly (non-op) strategy for vacation compute-heavy future executor"
+        );
+        Executor::ExecuteDirectly(ExecuteDirectly::new(None))
+    })
 }
 
 /// The stored strategy used to spawn compute-heavy futures.
@@ -90,17 +99,6 @@ pub(crate) enum Executor {
     /// tokio task::spawn_blocking
     #[cfg(feature = "tokio")]
     SpawnBlocking(spawn_blocking::SpawnBlocking),
-}
-
-impl Default for &Executor {
-    fn default() -> Self {
-        DEFAULT_GLOBAL_EXECUTOR_STRATEGY.get_or_init(|| {
-            log::warn!(
-                "Defaulting to ExecuteDirectly (non-op) strategy for vacation compute-heavy future executor"
-            );
-            Executor::ExecuteDirectly(ExecuteDirectly::new(None))
-        })
-    }
 }
 
 impl Execute for Executor {
