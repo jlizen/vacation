@@ -1,8 +1,8 @@
 use std::time::Duration;
 
-use compute_heavy_future_executor::{
-    execute_sync, global_sync_strategy, global_sync_strategy_builder, CustomExecutorSyncClosure,
-    ExecutorStrategy, GlobalStrategy,
+use vacation::{
+    execute_sync, global_sync_strategy, global_sync_strategy_builder, ChanceOfBlocking,
+    CustomExecutorSyncClosure, ExecutorStrategy, GlobalStrategy,
 };
 
 #[tokio::test]
@@ -23,7 +23,7 @@ async fn custom_executor_simple() {
         5
     };
 
-    let res = execute_sync(closure).await.unwrap();
+    let res = execute_sync(closure, ChanceOfBlocking::High).await.unwrap();
     assert_eq!(res, 5);
 
     assert_eq!(

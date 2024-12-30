@@ -1,15 +1,15 @@
 [package]
-name = "compute-heavy-future-executor"
+name = "vacation"
 version = "0.1.0"
 edition = "2021"
 license = "MIT"
-repository = "https://github.com/jlizen/compute-heavy-future-executor"
-homepage = "https://github.com/jlizen/compute-heavy-future-executor"
+repository = "https://github.com/jlizen/vacation"
+homepage = "https://github.com/jlizen/vacation"
 rust-version = "1.70"
 exclude = ["/.github", "/Exampless", "/scripts"]
 readme = "README.md"
-description = "Executor patterns for handling compute-bounded calls inside async contexts."
-categories = ["asynchronous"]
+description = "Give your (runtime) aworkers a break!"
+categories = ["asynchronous", "executor"]
 
 [features]
 default = ["tokio"]

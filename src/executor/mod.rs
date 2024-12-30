@@ -8,7 +8,7 @@ use std::sync::OnceLock;
 use current_context::CurrentContextExecutor;
 use custom_executor::{CustomExecutor, CustomExecutorSyncClosure};
 
-use crate::{Error, ExecutorStrategy, GlobalStrategy};
+use crate::{global_sync_strategy_builder, Error, ExecutorStrategy, GlobalStrategy};
 
 pub(crate) trait ExecuteSync {
     /// Accepts a sync function and processes it to completion.
@@ -41,7 +41,7 @@ fn set_sync_strategy(strategy: SyncExecutor) -> Result<(), Error> {
 /// # Examples
 ///
 /// ```
-/// use compute_heavy_future_executor::{
+/// use vacation::{
 ///     global_sync_strategy,
 ///     global_sync_strategy_builder,
 ///     GlobalStrategy,
@@ -97,22 +97,10 @@ pub(crate) enum SyncExecutor {
 impl Default for &SyncExecutor {
     fn default() -> Self {
         DEFAULT_COMPUTE_HEAVY_SYNC_EXECUTOR_STRATEGY.get_or_init(|| {
-            let core_count = num_cpus::get();
-
-            #[cfg(feature = "tokio")]
-            {
-                log::info!("Defaulting to SpawnBlocking strategy for compute-heavy future executor \
-                with max concurrency of {core_count} until a strategy is initialized");
-
-                SyncExecutor::SpawnBlocking(spawn_blocking::SpawnBlockingExecutor::new(Some(core_count)))
-            }
-
-            #[cfg(not(feature = "tokio"))]
-            {
-                log::warn!("Defaulting to CurrentContext (non-op) strategy for compute-heavy future executor \
-                with max concurrency of {core_count} until a strategy is initialized.");
-                SyncExecutor::CurrentContext(CurrentContextExecutor::new(Some(core_count)))
-            }
+            log::warn!(
+                "Defaulting to CurrentContext (non-op) strategy for compute-heavy future executor"
+            );
+            SyncExecutor::CurrentContext(CurrentContextExecutor::new(None))
         })
     }
 }
@@ -143,13 +131,35 @@ impl From<&SyncExecutor> for ExecutorStrategy {
     }
 }
 
+/// Initialize a set of sensible defaults for a tokio runtime:
+///
+/// - SpawnBlocking strategy
+/// - Max concurrency equal to the cpu core count.
+///
+/// # Error
+/// Returns an error if the global strategy is already initialized.
+/// It can only be initialized once.
+/// # Examples
+///
+/// ```
+/// use vacation::initialize_tokio;
+///
+/// # fn run() {
+/// initialize_tokio().unwrap();
+/// # }
+pub fn initialize_tokio() -> Result<(), Error> {
+    global_sync_strategy_builder()
+        .max_concurrency(num_cpus::get())
+        .initialize_spawn_blocking()
+}
+
 /// A builder to replace the default sync executor strategy
 /// with a caller-provided strategy.
 ///
 /// # Examples
 ///
 /// ```
-/// use compute_heavy_future_executor::global_sync_strategy_builder;
+/// use vacation::global_sync_strategy_builder;
 ///
 /// # fn run() {
 /// global_sync_strategy_builder()
@@ -170,15 +180,15 @@ impl SyncExecutorBuilder {
     /// If this number is exceeded, the executor will wait to execute the
     /// input closure until a permit can be acquired.
     ///
-    /// ## Default
-    /// No maximum concurrency when strategies are manually built.
+    /// A good value tends to be the number of cpu cores on your machine.
     ///
-    /// For default strategies, the default concurrency limit will be the number of cpu cores.
+    /// ## Default
+    /// No maximum concurrency.
     ///
     /// # Examples
     ///
     /// ```
-    /// use compute_heavy_future_executor::global_sync_strategy_builder;
+    /// use vacation::global_sync_strategy_builder;
     ///
     /// # fn run() {
     /// global_sync_strategy_builder()
@@ -197,7 +207,7 @@ impl SyncExecutorBuilder {
     /// This is effectively a non-op wrapper that adds no special handling for the sync future
     /// besides optional concurrency control.
     ///
-    /// This is the default if the `tokio` feature is disabled (with concurrency equal to cpu core count).
+    /// This is the default strategy if nothing is initialized, with no max concurrency.
     ///
     /// # Error
     /// Returns an error if the global strategy is already initialized.
@@ -206,7 +216,7 @@ impl SyncExecutorBuilder {
     /// # Examples
     ///
     /// ```
-    /// use compute_heavy_future_executor::global_sync_strategy_builder;
+    /// use vacation::global_sync_strategy_builder;
     ///
     /// # async fn run() {
     /// global_sync_strategy_builder().initialize_current_context().unwrap();
@@ -223,8 +233,6 @@ impl SyncExecutorBuilder {
     ///
     /// Requires `tokio` feature.
     ///
-    /// This is the default strategy if `tokio` feature is enabled, with a concurrency limit equal to the number of cpu cores.
-    ///
     /// # Error
     /// Returns an error if the global strategy is already initialized.
     /// It can only be initialized once.
@@ -232,7 +240,7 @@ impl SyncExecutorBuilder {
     /// # Examples
     ///
     /// ```
-    /// use compute_heavy_future_executor::global_sync_strategy_builder;
+    /// use vacation::global_sync_strategy_builder;
     ///
     /// # async fn run() {
     /// // this will include no concurrency limit when explicitly initialized
@@ -266,8 +274,8 @@ impl SyncExecutorBuilder {
     /// # Examples
     ///
     /// ```
-    /// use compute_heavy_future_executor::global_sync_strategy_builder;
-    /// use compute_heavy_future_executor::CustomExecutorSyncClosure;
+    /// use vacation::global_sync_strategy_builder;
+    /// use vacation::CustomExecutorSyncClosure;
     ///
     /// # async fn run() {
     /// // caution: this will panic if used outside of tokio multithreaded runtime

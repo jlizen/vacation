@@ -1,4 +1,4 @@
-use compute_heavy_future_executor::{global_sync_strategy_builder, Error};
+use vacation::{global_sync_strategy_builder, Error};
 
 #[test]
 fn multiple_initialize_err() {
