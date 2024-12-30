@@ -18,4 +18,13 @@ async fn default_to_execute_directly() {
         global_strategy(),
         GlobalStrategy::Default(ExecutorStrategy::ExecuteDirectly)
     );
+
+    // make sure we can continue to call it without failures due to repeat initialization
+    let res = execute(closure, ChanceOfBlocking::High).await.unwrap();
+    assert_eq!(res, 5);
+
+    assert_eq!(
+        global_strategy(),
+        GlobalStrategy::Default(ExecutorStrategy::ExecuteDirectly)
+    );
 }

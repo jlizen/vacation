@@ -17,7 +17,7 @@ And then, the applications using the library can tune handling based on their pr
 ## Usage - Library Authors
 For library authors, it's as simple as adding a dependency enabling `vacation` (perhaps behind a feature flag).
 
-```
+```ignore
 [dependencies]
 vacation = { version = "0.1", default-features = false }
 ```
@@ -31,7 +31,7 @@ fn sync_work(input: String)-> u8 {
     5
 }
 pub async fn a_future_that_has_blocking_sync_work() -> u8 {
-    // relies on caller-specified strategy for translating execute into a future that won't
+    // relies on application-specified strategy for translating execute into a future that won't
     // block the current worker thread
     vacation::execute(move || { sync_work("foo".to_string()) }, vacation::ChanceOfBlocking::High).await.unwrap()
 }
@@ -44,7 +44,7 @@ By default, the strategy is just a non-op.
 
 ### Simple example
 
-```
+```ignore
 [dependencies]
 // enables `tokio` feature by default => spawn_blocking strategy
 vacation = { version = "0.1" }
@@ -61,7 +61,7 @@ async fn main() {
 ### Rayon example
 Or, you can add an alternate strategy, for instance a custom closure using Rayon.
 
-```
+```ignore
 [dependencies]
 vacation = { version = "0.1", default-features = false }
 // used for example with custom executor
@@ -75,9 +75,9 @@ use rayon::ThreadPool;
 static THREADPOOL: OnceLock<ThreadPool> = OnceLock::new();
 
 fn initialize_strategy() {
-    THREADPOOL.setrayon::ThreadPoolBuilder::default().build().unwrap());
+    THREADPOOL.set(rayon::ThreadPoolBuilder::default().build().unwrap());
 
-    let custom_closure: CustomClosure =
+    let custom_closure: vacation::CustomClosure =
         Box::new(|f| Box::new(async move { Ok(THREADPOOL.get().unwrap().spawn(f)) }));
 
     vacation::init()
