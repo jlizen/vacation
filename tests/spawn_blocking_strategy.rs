@@ -4,9 +4,9 @@ mod test {
 
     use futures_util::future::join_all;
 
-    use compute_heavy_future_executor::{
-        execute_sync, global_sync_strategy, global_sync_strategy_builder, ExecutorStrategy,
-        GlobalStrategy,
+    use vacation::{
+        execute_sync, global_sync_strategy, global_sync_strategy_builder, ChanceOfBlocking,
+        ExecutorStrategy, GlobalStrategy,
     };
 
     fn initialize() {
@@ -25,7 +25,7 @@ mod test {
             5
         };
 
-        let res = execute_sync(closure).await.unwrap();
+        let res = execute_sync(closure, ChanceOfBlocking::High).await.unwrap();
         assert_eq!(res, 5);
 
         assert_eq!(
@@ -48,7 +48,7 @@ mod test {
 
         // note that we also are racing against concurrency from other tests in this module
         for _ in 0..6 {
-            let future = async move { execute_sync(closure).await };
+            let future = async move { execute_sync(closure, ChanceOfBlocking::High).await };
             futures.push(future);
         }
         tokio::time::sleep(Duration::from_millis(5)).await;

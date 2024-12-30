@@ -1,10 +1,10 @@
 use std::{sync::OnceLock, time::Duration};
 
-use compute_heavy_future_executor::{
-    execute_sync, global_sync_strategy_builder, CustomExecutorSyncClosure,
-};
 use futures_util::future::join_all;
 use rayon::ThreadPool;
+use vacation::{
+    execute_sync, global_sync_strategy_builder, ChanceOfBlocking, CustomExecutorSyncClosure,
+};
 
 static THREADPOOL: OnceLock<ThreadPool> = OnceLock::new();
 
@@ -32,7 +32,7 @@ async fn custom_executor_strategy() {
         5
     };
 
-    let res = execute_sync(closure).await.unwrap();
+    let res = execute_sync(closure, ChanceOfBlocking::High).await.unwrap();
     assert_eq!(res, 5);
 }
 
@@ -52,7 +52,7 @@ async fn custom_executor_concurrency() {
 
     // note that we also are racing against concurrency from other tests in this module
     for _ in 0..6 {
-        futures.push(execute_sync(closure));
+        futures.push(execute_sync(closure, ChanceOfBlocking::High));
     }
 
     join_all(futures).await;

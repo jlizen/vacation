@@ -1,10 +1,10 @@
 use std::time::Duration;
 
-use compute_heavy_future_executor::{
-    execute_sync, global_sync_strategy, global_sync_strategy_builder, ExecutorStrategy,
-    GlobalStrategy,
-};
 use futures_util::future::join_all;
+use vacation::{
+    execute_sync, global_sync_strategy, global_sync_strategy_builder, ChanceOfBlocking,
+    ExecutorStrategy, GlobalStrategy,
+};
 
 fn initialize() {
     // we are racing all tests against the single oncelock
@@ -22,7 +22,7 @@ async fn current_context_strategy() {
         5
     };
 
-    let res = execute_sync(closure).await.unwrap();
+    let res = execute_sync(closure, ChanceOfBlocking::High).await.unwrap();
     assert_eq!(res, 5);
 
     assert_eq!(
@@ -47,8 +47,10 @@ async fn current_context_concurrency() {
     // note that we also are racing against concurrency from other tests in this module
     for _ in 0..6 {
         // we need to spawn tasks since otherwise we'll just block the current worker thread
-        let future =
-            async move { tokio::task::spawn(async move { execute_sync(closure).await }).await };
+        let future = async move {
+            tokio::task::spawn(async move { execute_sync(closure, ChanceOfBlocking::High).await })
+                .await
+        };
         futures.push(future);
     }
     tokio::time::sleep(Duration::from_millis(5)).await;
