@@ -46,15 +46,30 @@ By default, the strategy is just a non-op.
 
 ```ignore
 [dependencies]
-// enables `tokio` feature by default => spawn_blocking strategy
+// enables `tokio` feature by default which allows the spawn_blocking strategy
 vacation = { version = "0.1" }
 ```
 
-And then call the `install_tokio_strategy()` helper that uses some sensible defaults:
+And then call the `install_tokio_strategy()` helper that uses some sensible defaults (spawn blocking w/ concurrency control equal to cpu cores):
 ```
 #[tokio::main]
 async fn main() {
     vacation::install_tokio_strategy().unwrap();
+}
+```
+
+### Builder example
+To customize a bit more, you can select from a cookie cutter strategy and configure concurrency, via `vacation::init()`:
+```ignore
+[dependencies]
+// enables `tokio` feature by default which allows the spawn_blocking strategy
+vacation = { version = "0.1" }
+```
+
+```
+#[tokio::main]
+async fn main() {
+    vacation::init().max_concurrency(5).spawn_blocking().install();
 }
 ```
 
