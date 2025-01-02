@@ -1,13 +1,11 @@
-use compute_heavy_future_executor::{error::Error, global_strategy_builder};
+use vacation::{init, Error};
 
 #[test]
 fn multiple_initialize_err() {
-    global_strategy_builder()
-        .initialize_current_context()
-        .unwrap();
+    init().execute_directly().install().unwrap();
 
     assert!(matches!(
-        global_strategy_builder().initialize_current_context(),
+        init().execute_directly().install(),
         Err(Error::AlreadyInitialized(_))
     ));
 }
