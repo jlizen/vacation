@@ -77,8 +77,9 @@ static THREADPOOL: OnceLock<ThreadPool> = OnceLock::new();
 fn initialize_strategy() {
     THREADPOOL.set(rayon::ThreadPoolBuilder::default().build().unwrap());
 
-    let custom_closure: vacation::CustomClosure =
-        Box::new(|f| Box::new(async move { Ok(THREADPOOL.get().unwrap().spawn(f)) }));
+    let custom_closure = |f: vacation::CustomClosureInput| {
+        Box::new(async move { Ok(THREADPOOL.get().unwrap().spawn(f)) }) as vacation::CustomClosureOutput
+    };
 
     vacation::init()
         // probably no need for max concurrency as rayon already is defaulting to a thread per core

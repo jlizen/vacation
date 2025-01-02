@@ -3,7 +3,7 @@ pub(crate) mod execute_directly;
 #[cfg(feature = "tokio")]
 pub(crate) mod spawn_blocking;
 
-use std::sync::OnceLock;
+use std::{future::Future, sync::OnceLock};
 
 use custom::{Custom, CustomClosure};
 use execute_directly::ExecuteDirectly;
@@ -129,7 +129,7 @@ impl From<&Executor> for ExecutorStrategy {
 
 /// Initialize a set of sensible defaults for a tokio runtime:
 ///
-/// - SpawnBlocking strategy
+/// - [`SpawnBlocking`]` strategy
 /// - Max concurrency equal to the cpu core count.
 ///
 /// Only available with the `tokio` feature.
@@ -182,7 +182,7 @@ impl<Strategy: std::fmt::Debug> std::fmt::Debug for ExecutorBuilder<Strategy> {
 }
 
 #[derive(Debug)]
-pub struct NoStrategy;
+pub struct NeedsStrategy;
 pub enum HasStrategy {
     ExecuteDirectly,
     #[cfg(feature = "tokio")]
@@ -323,9 +323,9 @@ impl<Strategy> ExecutorBuilder<Strategy> {
     /// // caution: this will panic if used outside of tokio multithreaded runtime
     /// // this is a kind of dangerous strategy, read up on `block in place's` limitations
     /// // before using this approach
-    /// let closure: vacation::CustomClosure = Box::new(|f| {
-    ///     Box::new(async move { Ok(tokio::task::block_in_place(move || f())) })
-    /// });
+    /// let closure = |f: vacation::CustomClosureInput| {
+    ///     Box::new(async move { Ok(tokio::task::block_in_place(move || f())) }) as vacation::CustomClosureOutput
+    /// };
     ///
     /// vacation::init().custom_executor(closure).install().unwrap();
     /// # }
@@ -335,9 +335,20 @@ impl<Strategy> ExecutorBuilder<Strategy> {
     /// [`Rayon threadpool`]: https://docs.rs/rayon/latest/rayon/struct.ThreadPool.html
     /// [`block_in_place`]: https://docs.rs/tokio/latest/tokio/task/fn.block_in_place.html
     #[must_use = "doesn't do anything unless install()-ed"]
-    pub fn custom_executor(self, closure: CustomClosure) -> ExecutorBuilder<HasStrategy> {
+    pub fn custom_executor<Closure>(self, closure: Closure) -> ExecutorBuilder<HasStrategy>
+    where
+        Closure: Fn(
+                Box<dyn FnOnce() + Send + 'static>,
+            ) -> Box<
+                dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>>
+                    + Send
+                    + 'static,
+            > + Send
+            + Sync
+            + 'static,
+    {
         ExecutorBuilder::<HasStrategy> {
-            strategy: HasStrategy::Custom(closure),
+            strategy: HasStrategy::Custom(Box::new(closure)),
             max_concurrency: self.max_concurrency,
         }
     }

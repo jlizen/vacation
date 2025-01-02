@@ -2,19 +2,19 @@ use std::{sync::OnceLock, time::Duration};
 
 use futures_util::future::join_all;
 use rayon::ThreadPool;
-use vacation::{execute, init, ChanceOfBlocking, CustomClosure};
+use vacation::{execute, init, ChanceOfBlocking, CustomClosureInput, CustomClosureOutput};
 
 static THREADPOOL: OnceLock<ThreadPool> = OnceLock::new();
 
 fn initialize() {
     THREADPOOL.get_or_init(|| rayon::ThreadPoolBuilder::default().build().unwrap());
 
-    let custom_closure: CustomClosure = Box::new(|f| {
+    let custom_closure = |f: CustomClosureInput| {
         Box::new(async move {
             THREADPOOL.get().unwrap().spawn(f);
             Ok(())
-        })
-    });
+        }) as CustomClosureOutput
+    };
 
     let _ = init()
         .max_concurrency(3)
