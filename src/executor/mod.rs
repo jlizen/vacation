@@ -129,11 +129,11 @@ impl From<&Executor> for ExecutorStrategy {
 
 /// Initialize a set of sensible defaults for a tokio runtime:
 ///
-/// - [`SpawnBlocking`]` strategy
+/// - [`ExecutorBuilder::spawn_blocking`] strategy
 /// - Max concurrency equal to the cpu core count.
 ///
 /// Stores the current tokio runtime to spawn tasks with. To use an alternate
-/// runtime, use [`spawn_blocking_with_handle()`].
+/// runtime, use [`ExecutorBuilder::spawn_blocking_with_handle`].
 ///
 /// Only available with the `tokio` feature.
 ///
@@ -263,7 +263,7 @@ impl<Strategy> ExecutorBuilder<Strategy> {
     /// tokio blocking threadpool via Tokio's [`spawn_blocking`].
     ///
     /// Stores the current tokio runtime to spawn tasks with. To use an alternate
-    /// runtime, use [`spawn_blocking_with_handle()`].
+    /// runtime, use [`ExecutorBuilder::spawn_blocking_with_handle`].
     ///
     /// Requires `tokio` feature.
     ///
