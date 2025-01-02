@@ -10,10 +10,11 @@ mod executor;
 
 pub use error::Error;
 pub use executor::{
-    custom::CustomClosure, global_strategy, install_tokio_strategy, ExecutorBuilder,
+    custom::{CustomClosureInput, CustomClosureOutput},
+    global_strategy, install_tokio_strategy, ExecutorBuilder,
 };
 
-use executor::{get_global_executor, Execute, Executor, NoStrategy};
+use executor::{get_global_executor, Execute, Executor, NeedsStrategy};
 
 use std::fmt::Debug;
 
@@ -80,16 +81,16 @@ pub enum ExecutorStrategy {
 /// # }
 /// ```
 #[must_use = "doesn't do anything unless used"]
-pub fn init() -> ExecutorBuilder<NoStrategy> {
+pub fn init() -> ExecutorBuilder<NeedsStrategy> {
     ExecutorBuilder {
-        strategy: NoStrategy,
+        strategy: NeedsStrategy,
         max_concurrency: None,
     }
 }
 
 /// Likelihood of the provided closure blocking for a significant period of time.
 /// Will eventually be used to customize strategies with more granularity.
-#[derive(Debug)]
+#[derive(Debug, Clone, Copy)]
 pub enum ChanceOfBlocking {
     /// Very likely to block, use primary sync strategy
     High,

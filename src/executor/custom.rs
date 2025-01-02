@@ -4,19 +4,17 @@ use crate::{concurrency_limit::ConcurrencyLimit, error::Error};
 
 use super::Execute;
 
+/// The input for the custom closure
+pub type CustomClosureInput = Box<dyn FnOnce() + Send + 'static>;
+/// The output type for the custom closure
+pub type CustomClosureOutput =
+    Box<dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>> + Send + 'static>;
+
 /// A closure that accepts an arbitrary sync function and returns a future that executes it.
 /// The Custom Executor will implicitly wrap the input function in a oneshot
 /// channel to erase its input/output type.
-pub type CustomClosure = Box<
-    dyn Fn(
-            Box<dyn FnOnce() + Send + 'static>,
-        ) -> Box<
-            dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>>
-                + Send
-                + 'static,
-        > + Send
-        + Sync,
->;
+pub(crate) type CustomClosure =
+    Box<dyn Fn(CustomClosureInput) -> CustomClosureOutput + Send + Sync>;
 
 pub(crate) struct Custom {
     closure: CustomClosure,

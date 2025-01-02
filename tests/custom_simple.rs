@@ -1,18 +1,18 @@
 use std::time::Duration;
 
 use vacation::{
-    execute, global_strategy, init, ChanceOfBlocking, CustomClosure, ExecutorStrategy,
-    GlobalStrategy,
+    execute, global_strategy, init, ChanceOfBlocking, CustomClosureInput, CustomClosureOutput,
+    ExecutorStrategy, GlobalStrategy,
 };
 
 #[tokio::test]
 async fn custom_simple() {
-    let custom_closure: CustomClosure = Box::new(|f| {
+    let custom_closure = |f: CustomClosureInput| {
         Box::new(async move {
             f();
             Ok(())
-        })
-    });
+        }) as CustomClosureOutput
+    };
 
     init().custom_executor(custom_closure).install().unwrap();
 
