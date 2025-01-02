@@ -132,17 +132,25 @@ impl From<&Executor> for ExecutorStrategy {
 /// - [`SpawnBlocking`]` strategy
 /// - Max concurrency equal to the cpu core count.
 ///
+/// Stores the current tokio runtime to spawn tasks with. To use an alternate
+/// runtime, use [`spawn_blocking_with_handle()`].
+///
 /// Only available with the `tokio` feature.
 ///
-/// # Error
+/// # Panic
+/// Calling this from outside a tokio runtime will panic.
+///
+/// # Errors
 /// Returns an error if the global strategy is already initialized.
 /// It can only be initialized once.
+///
 /// # Examples
 ///
 /// ```
 /// # fn run() {
 /// vacation::install_tokio_strategy().unwrap();
 /// # }
+/// ```
 #[cfg(feature = "tokio")]
 pub fn install_tokio_strategy() -> Result<(), Error> {
     init()
@@ -254,7 +262,13 @@ impl<Strategy> ExecutorBuilder<Strategy> {
     /// Initializes a new global strategy to execute input closures by blocking on them inside the
     /// tokio blocking threadpool via Tokio's [`spawn_blocking`].
     ///
+    /// Stores the current tokio runtime to spawn tasks with. To use an alternate
+    /// runtime, use [`spawn_blocking_with_handle()`].
+    ///
     /// Requires `tokio` feature.
+    ///
+    /// # Panic
+    /// Calling this from outside a tokio runtime will panic.
     ///
     /// # Examples
     ///
