@@ -43,11 +43,13 @@ impl Execute for Custom {
 
         let (tx, rx) = tokio::sync::oneshot::channel();
 
-        let wrapped_input_closure = Box::new(|| {
+        let wrapped_input_closure = Box::new(move || {
+            let _permit = _permit;
             let res = f();
             if tx.send(res).is_err() {
                 log::trace!("custom sync executor foreground dropped before it could receive the result of the sync closure");
             }
+            // permit implicitly drops after work finishes
         });
 
         Box::into_pin((self.closure)(wrapped_input_closure))
@@ -55,6 +57,5 @@ impl Execute for Custom {
             .map_err(Error::BoxError)?;
 
         rx.await.map_err(Error::RecvError)
-        // permit implicitly drops
     }
 }
