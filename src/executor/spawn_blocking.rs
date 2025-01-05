@@ -29,9 +29,12 @@ impl Execute for SpawnBlocking {
         let _permit = self.concurrency_limit.acquire_permit().await;
 
         self.handle
-            .spawn_blocking(f)
+            .spawn_blocking(move || {
+                let _permit = _permit;
+                f()
+                // permit implicitly drops after spawned work finishes
+            })
             .await
             .map_err(Error::JoinError)
-        // permit implicitly drops
     }
 }

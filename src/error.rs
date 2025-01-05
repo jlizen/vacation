@@ -1,5 +1,3 @@
-use core::fmt;
-
 use crate::ExecutorStrategy;
 
 /// An error from the custom executor
@@ -19,8 +17,8 @@ pub enum Error {
     JoinError(tokio::task::JoinError),
 }
 
-impl fmt::Display for Error {
-    fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
+impl std::fmt::Display for Error {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         match self {
             Error::AlreadyInitialized(strategy) => write!(
                 f,
