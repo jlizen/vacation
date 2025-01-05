@@ -5,32 +5,18 @@ use vacation::{
     execute, global_strategy, init, ChanceOfBlocking, ExecutorStrategy, GlobalStrategy,
 };
 
-fn initialize() {
-    // we are racing all tests against the single oncelock
-    let _ = init().max_concurrency(3).execute_directly().install();
-}
-
-#[tokio::test]
-async fn execute_directly_strategy() {
-    initialize();
-
-    let closure = || {
-        std::thread::sleep(Duration::from_millis(15));
-        5
-    };
-
-    let res = execute(closure, ChanceOfBlocking::High).await.unwrap();
-    assert_eq!(res, 5);
+#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
+async fn execute_directly() {
+    init()
+        .max_concurrency(3)
+        .execute_directly()
+        .install()
+        .unwrap();
 
     assert_eq!(
         global_strategy(),
         GlobalStrategy::Initialized(ExecutorStrategy::ExecuteDirectly)
     );
-}
-
-#[tokio::test(flavor = "multi_thread", worker_threads = 4)]
-async fn execute_directly_concurrency() {
-    initialize();
 
     let start = std::time::Instant::now();
 
@@ -49,12 +35,11 @@ async fn execute_directly_concurrency() {
         };
         futures.push(future);
     }
-    tokio::time::sleep(Duration::from_millis(5)).await;
 
-    join_all(futures).await;
+    let res = join_all(futures).await;
 
     let elapsed_millis = start.elapsed().as_millis();
     assert!(elapsed_millis < 50, "futures did not run concurrently");
-
     assert!(elapsed_millis > 20, "futures exceeded max concurrency");
+    assert!(!res.iter().any(|res| res.is_err()));
 }
