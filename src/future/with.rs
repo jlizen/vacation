@@ -736,6 +736,9 @@ mod test {
         assert_eq!(0, work_rx.len());
     }
 
+    // we test suppressing the inner poll in the integ tests, since we can't block
+    // and return pending without spawn_blocking strategy
+
     #[tokio::test]
     async fn supress_inner_poll_works() {
         // 2 units of work means one poll, then we get work, and then next poll we finish...

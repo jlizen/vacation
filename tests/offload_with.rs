@@ -47,5 +47,32 @@ mod test {
             "inner fut did not run concurrently with work, and/or futures did not run concurrently with each other"
         );
         assert!(elapsed_millis > 20, "futures exceeded max concurrency");
+
+        let future = vacation::future::builder()
+            .future(Box::pin(async { 
+                tokio::time::sleep(Duration::from_millis(20)).await;
+                Ok::<bool, &'static str>(true) 
+            }))
+            .offload_with(
+                vacation::future::OffloadWith::builder()
+                    .get_offload_fn(|_| {
+                        Ok(Some(Box::new(Box::pin(vacation::execute(
+                            || std::thread::sleep(Duration::from_millis(50)),
+                            vacation::ChanceOfBlocking::High,
+                        )))))
+                    })
+                    .incorporate_fn(|_, _: Result<(), vacation::Error>| Err(Err("foo"))),
+            )
+            .while_waiting_for_offload(vacation::future::WhileWaitingMode::SuppressInnerPoll)
+            .build::<()>();
+
+        let res = future.await;
+        // if the inner future completed, we would have success, but instead we delay polling and return
+        // an error after the slower vacation work finishes
+
+        // gets work on first poll,
+        // executes work on second poll + gets more work
+        // executes work on third poll, then finishes inner future and returns before getting more work
+        assert_eq!(res, Err("foo"));
     }
 }
