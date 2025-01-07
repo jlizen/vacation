@@ -7,16 +7,19 @@
 mod concurrency_limit;
 mod error;
 mod executor;
+#[cfg(feature = "future")]
+/// Vacation future implementations for libraries that are manually implementing futures
+pub mod future;
 
 pub use error::Error;
+#[cfg(feature = "tokio")]
+pub use executor::install_tokio_strategy;
 pub use executor::{
     custom::{CustomClosureInput, CustomClosureOutput},
-    global_strategy, install_tokio_strategy, ExecutorBuilder,
+    global_strategy, ExecutorBuilder,
 };
 
 use executor::{get_global_executor, Execute, Executor, NeedsStrategy};
-
-use std::fmt::Debug;
 
 /// The currently loaded global strategy.
 #[derive(Debug, Clone, Copy, PartialEq)]
@@ -41,10 +44,6 @@ pub enum GlobalStrategy {
 ///
 /// # fn run() {
 ///
-/// #[cfg(feature = "tokio")]
-/// assert_eq!(global_strategy(), GlobalStrategy::Default(ExecutorStrategy::SpawnBlocking));
-///
-/// #[cfg(not(feature = "tokio"))]
 /// assert_eq!(global_strategy(), GlobalStrategy::Default(ExecutorStrategy::ExecuteDirectly));
 ///
 /// vacation::init()
@@ -77,7 +76,7 @@ pub enum ExecutorStrategy {
 ///
 /// ```
 /// # fn run() {
-/// vacation::init().max_concurrency(3).spawn_blocking().install().unwrap();
+/// vacation::init().max_concurrency(3).execute_directly().install().unwrap();
 /// # }
 /// ```
 #[must_use = "doesn't do anything unless used"]
