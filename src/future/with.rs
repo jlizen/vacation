@@ -42,10 +42,10 @@ pin_project! {
 ///                 // and retrieve any work to offload
 ///                 .get_offload_fn(|_inner_fut| {
 ///                     // it could be conditional, but here it's always returning work
-///                     Ok(Some(Box::new(Box::pin(vacation::execute(
+///                     Ok(Some(Box::pin(vacation::execute(
 ///                         || std::thread::sleep(std::time::Duration::from_millis(50)),
 ///                         vacation::ChanceOfBlocking::High
-///                     )))))
+///                     ))))
 ///                 })
 ///                 // called with the results of the offloaded work and the inner future,
 ///                 // use to convert errors or do any post-processing
@@ -66,7 +66,7 @@ pub struct OffloadWithFuture<InnerFut, GetOffloadFn, OffloadResult, IncorporateF
     inner_fut: InnerFut,
     get_offload_fn: GetOffloadFn,
     incorporate_fn: IncorporateFn,
-    offload_fut: Option<Box<dyn Future<Output = Result<OffloadResult, crate::Error>> + Unpin + Send>>,
+    offload_fut: Option<Pin<Box<dyn Future<Output = Result<OffloadResult, crate::Error>> + Send>>>,
     while_waiting: WhileWaitingMode,
 }
 }
@@ -85,10 +85,10 @@ pub struct OffloadWithFuture<InnerFut, GetOffloadFn, OffloadResult, IncorporateF
 ///      // and retrieve any work to offload
 ///      .get_offload_fn(|_inner_fut: &mut InnerFut| {
 ///          // it could be conditional, but here it's always returning work
-///          Ok(Some(Box::new(Box::pin(vacation::execute(
+///          Ok(Some(Box::pin(vacation::execute(
 ///              || std::thread::sleep(std::time::Duration::from_millis(50)),
 ///              vacation::ChanceOfBlocking::High
-///          )))))
+///          ))))
 ///      })
 ///      .incorporate_fn(|_inner_fut: &mut InnerFut, res: Result<bool, vacation::Error>| {
 ///           println!("work complete: {res:#?}");
@@ -134,10 +134,10 @@ impl FutureBuilder<NeedsStrategy, NeedsInnerFuture, NeedsOffload, NeedsWhileWait
     ///                 // and retrieve any work to offload
     ///                 .get_offload_fn(|_inner_fut| {
     ///                     // it could be conditional, but here it's always returning work
-    ///                     Ok(Some(Box::new(Box::pin(vacation::execute(
+    ///                     Ok(Some(Box::pin(vacation::execute(
     ///                         || std::thread::sleep(std::time::Duration::from_millis(50)),
     ///                         vacation::ChanceOfBlocking::High
-    ///                     )))))
+    ///                     ))))
     ///                 })
     ///                 // called with the results of the offloaded work and the inner future,
     ///                 // use to convert errors or do any post-processing
@@ -208,10 +208,10 @@ impl<IncorporateFn> OffloadWith<NeedsGetOffloadFn, IncorporateFn> {
     ///      // and retrieve any work to offload
     ///      .get_offload_fn(|_inner_fut: &mut InnerFut| {
     ///          // it could be conditional, but here it's always returning work
-    ///          Ok(Some(Box::new(Box::pin(vacation::execute(
+    ///          Ok(Some(Box::pin(vacation::execute(
     ///              || std::thread::sleep(std::time::Duration::from_millis(50)),
     ///              vacation::ChanceOfBlocking::High
-    ///          )))))
+    ///          ))))
     ///      });
     /// # }
     /// ```
@@ -226,7 +226,7 @@ impl<IncorporateFn> OffloadWith<NeedsGetOffloadFn, IncorporateFn> {
         GetOffloadFn: Fn(
             &mut InnerFut,
         ) -> Result<
-            Option<Box<dyn Future<Output = Result<OffloadResult, crate::Error>> + Unpin + Send>>,
+            Option<Pin<Box<dyn Future<Output = Result<OffloadResult, crate::Error>> + Send>>>,
             InnerFut::Output,
         >,
         OffloadResult: Send + 'static,
@@ -257,10 +257,10 @@ impl<GetOffloadFn> OffloadWith<GetOffloadFn, NeedsIncorporateFn> {
     ///      // and retrieve any work to offload
     ///      .get_offload_fn(|_inner_fut: &mut InnerFut| {
     ///          // it could be conditional, but here it's always returning work
-    ///          Ok(Some(Box::new(Box::pin(vacation::execute(
+    ///          Ok(Some(Box::pin(vacation::execute(
     ///              || std::thread::sleep(std::time::Duration::from_millis(50)),
     ///              vacation::ChanceOfBlocking::High
-    ///          )))))
+    ///          ))))
     ///      })
     ///      .incorporate_fn(|_inner_fut: &mut InnerFut, res: Result<bool, vacation::Error>| {
     ///           println!("work complete: {res:#?}");
@@ -333,10 +333,7 @@ impl<InnerFut, Offload>
     pub fn while_waiting_for_offload(
         self,
         while_waiting: WhileWaitingMode,
-    ) -> FutureBuilder<OffloadWithFutureStrat, InnerFut, Offload, WhileWaitingMode>
-    where
-        InnerFut: Future + Unpin,
-    {
+    ) -> FutureBuilder<OffloadWithFutureStrat, InnerFut, Offload, WhileWaitingMode> {
         FutureBuilder::<OffloadWithFutureStrat, InnerFut, Offload, WhileWaitingMode> {
             strategy: self.strategy,
             inner_fut: self.inner_fut,
@@ -377,9 +374,7 @@ impl<InnerFut: Future, GetOffloadFn, OffloadResult, IncorporateFn>
     /// Updates self to store the future again if it's not complete
     fn poll_offloaded_work(
         &mut self,
-        mut offload_fut: Box<
-            dyn Future<Output = Result<OffloadResult, crate::Error>> + Send + Unpin,
-        >,
+        mut offload_fut: Pin<Box<dyn Future<Output = Result<OffloadResult, crate::Error>> + Send>>,
         cx: &mut Context<'_>,
     ) -> Poll<Result<(), InnerFut::Output>>
     where
@@ -407,7 +402,7 @@ where
     GetOffloadFn: Fn(
         &mut InnerFut,
     ) -> Result<
-        Option<Box<dyn Future<Output = Result<OffloadResult, crate::Error>> + Unpin + Send>>,
+        Option<Pin<Box<dyn Future<Output = Result<OffloadResult, crate::Error>> + Send>>>,
         InnerFut::Output,
     >,
     OffloadResult: Send + 'static,
@@ -476,7 +471,7 @@ mod test {
         ChanceOfBlocking,
     };
 
-    use super::{OffloadWith, OffloadWithFuture};
+    use super::*;
 
     /// Wraps a [`TestFuture`] in vacation handling
     /// to send to a mpsc channel each stage's call, or
@@ -493,10 +488,11 @@ mod test {
             &mut TestFuture,
         ) -> Result<
             Option<
-                Box<
-                    dyn Future<Output = Result<Result<(), TestFutureResponse>, crate::Error>>
-                        + Unpin
-                        + Send,
+                Pin<
+                    Box<
+                        dyn Future<Output = Result<Result<(), TestFutureResponse>, crate::Error>>
+                            + Send,
+                    >,
                 >,
             >,
             TestFutureResponse,
@@ -526,7 +522,7 @@ mod test {
 
                     let offload_fut = crate::execute(closure, ChanceOfBlocking::High);
 
-                    Ok(Some(Box::new(Box::pin(offload_fut))))
+                    Ok(Some(Box::pin(offload_fut)))
                 })
                 .incorporate_fn(
                     move |_inner: &mut TestFuture,
@@ -750,10 +746,10 @@ mod test {
             .offload_with(
                 OffloadWith::builder()
                     .get_offload_fn(|_: &mut TestFuture| {
-                        Ok(Some(Box::new(Box::pin(crate::execute(
+                        Ok(Some(Box::pin(crate::execute(
                             || std::thread::sleep(Duration::from_millis(50)),
                             ChanceOfBlocking::High,
-                        )))))
+                        ))))
                     })
                     .incorporate_fn(|_: &mut TestFuture, _: Result<(), crate::Error>| {
                         Err(TestFutureResponse::VacationIncorporateError)

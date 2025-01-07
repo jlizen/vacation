@@ -54,7 +54,7 @@ pub struct OffloadFirstFuture<InnerFut, OffloadResult, IncorporateFn> {
 
 enum Inner<InnerFut, OffloadResult, IncorporateFn> {
     OffloadInProgress {
-        offload_fut: Box<dyn Future<Output = Result<OffloadResult, crate::Error>> + Unpin + Send>,
+        offload_fut: Pin<Box<dyn Future<Output = Result<OffloadResult, crate::Error>> + Send>>,
         incorporate: Incorporate<IncorporateFn>,
     },
     InnerFuture {
@@ -92,7 +92,7 @@ pub struct OffloadFirst<OffloadFuture, IncorporateFn> {
 pub struct NeedsOffloadFuture;
 /// Has work ready to execute via vacation
 pub struct HassOffloadFuture<OffloadResult>(
-    Box<dyn Future<Output = Result<OffloadResult, crate::Error>> + Unpin + Send>,
+    Pin<Box<dyn Future<Output = Result<OffloadResult, crate::Error>> + Send>>,
 );
 
 impl<OffloadResult> std::fmt::Debug for HassOffloadFuture<OffloadResult> {
@@ -153,7 +153,7 @@ impl<IncorporateFn> OffloadFirst<NeedsOffloadFuture, IncorporateFn> {
         OffloadResult: Send + 'static,
     {
         OffloadFirst {
-            offload_future: HassOffloadFuture(Box::new(Box::pin(offload_future))),
+            offload_future: HassOffloadFuture(Box::pin(offload_future)),
             incorporate_fn: self.incorporate_fn,
         }
     }
