@@ -161,10 +161,10 @@ pub enum WhileWaitingMode {
 ///                 // and retrieve any work to offload
 ///                 .get_offload_fn(|_inner_fut| {
 ///                     // it could be conditional, but here it's always returning work
-///                     Ok(Some(Box::new(Box::pin(vacation::execute(
+///                     Ok(Some(Box::pin(vacation::execute(
 ///                         || std::thread::sleep(std::time::Duration::from_millis(50)),
 ///                         vacation::ChanceOfBlocking::High
-///                     )))))
+///                     ))))
 ///                 })
 ///                 // called with the results of the offloaded work and the inner future,
 ///                 // use to convert errors or do any post-processing

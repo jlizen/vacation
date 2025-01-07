@@ -26,10 +26,10 @@ mod test {
                 .offload_with(
                     vacation::future::OffloadWith::builder()
                         .get_offload_fn(|_inner_fut| {
-                            Ok(Some(Box::new(Box::pin(vacation::execute(
+                            Ok(Some(Box::pin(vacation::execute(
                                 || std::thread::sleep(Duration::from_millis(20)),
                                 vacation::ChanceOfBlocking::High,
-                            )))))
+                            ))))
                         })
                         .incorporate_fn(|_, _| Ok(())),
                 )
@@ -49,17 +49,17 @@ mod test {
         assert!(elapsed_millis > 20, "futures exceeded max concurrency");
 
         let future = vacation::future::builder()
-            .future(Box::pin(async { 
+            .future(Box::pin(async {
                 tokio::time::sleep(Duration::from_millis(20)).await;
-                Ok::<bool, &'static str>(true) 
+                Ok::<bool, &'static str>(true)
             }))
             .offload_with(
                 vacation::future::OffloadWith::builder()
                     .get_offload_fn(|_| {
-                        Ok(Some(Box::new(Box::pin(vacation::execute(
+                        Ok(Some(Box::pin(vacation::execute(
                             || std::thread::sleep(Duration::from_millis(50)),
                             vacation::ChanceOfBlocking::High,
-                        )))))
+                        ))))
                     })
                     .incorporate_fn(|_, _: Result<(), vacation::Error>| Err(Err("foo"))),
             )
