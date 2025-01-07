@@ -8,7 +8,7 @@ use std::{future::Future, sync::OnceLock};
 use custom::{Custom, CustomClosure};
 use execute_directly::ExecuteDirectly;
 
-use crate::{init, Error, ExecutorStrategy, GlobalStrategy};
+use crate::{Error, ExecutorStrategy, GlobalStrategy};
 
 pub(crate) trait Execute {
     /// Accepts a sync function and processes it to completion.
@@ -46,11 +46,6 @@ fn set_global_strategy(strategy: Executor) -> Result<(), Error> {
 /// };
 ///
 /// # fn run() {
-///
-/// #[cfg(feature = "tokio")]
-/// assert_eq!(global_strategy(), GlobalStrategy::Default(ExecutorStrategy::SpawnBlocking));
-///
-/// #[cfg(not(feature = "tokio"))]
 /// assert_eq!(global_strategy(), GlobalStrategy::Default(ExecutorStrategy::ExecuteDirectly));
 ///
 /// vacation::init()
@@ -153,7 +148,7 @@ impl From<&Executor> for ExecutorStrategy {
 /// ```
 #[cfg(feature = "tokio")]
 pub fn install_tokio_strategy() -> Result<(), Error> {
-    init()
+    super::init()
         .max_concurrency(num_cpus::get())
         .spawn_blocking()
         .install()
@@ -166,8 +161,11 @@ pub fn install_tokio_strategy() -> Result<(), Error> {
 ///
 /// ```
 /// # fn run() {
+///
+/// let cores = num_cpus::get();
+///
 /// vacation::init()
-///         .max_concurrency(10)
+///         .max_concurrency(cores)
 ///         .execute_directly()
 ///         .install()
 ///         .unwrap();
