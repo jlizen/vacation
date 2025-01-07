@@ -26,6 +26,7 @@ mod test {
                                 true
                             },
                             vacation::ChanceOfBlocking::High,
+                            "test.operation",
                         ))
                         .incorporate_fn(|res| {
                             Ok(Box::pin(async move {

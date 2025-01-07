@@ -7,9 +7,9 @@ use vacation::{
 
 #[tokio::test]
 async fn custom_simple() {
-    let custom_closure = |f: CustomClosureInput| {
+    let custom_closure = |input: CustomClosureInput| {
         Box::new(async move {
-            f();
+            (input.work)();
             Ok(())
         }) as CustomClosureOutput
     };
@@ -21,7 +21,9 @@ async fn custom_simple() {
         5
     };
 
-    let res = execute(closure, ChanceOfBlocking::High).await.unwrap();
+    let res = execute(closure, ChanceOfBlocking::High, "test.operation")
+        .await
+        .unwrap();
     assert_eq!(res, 5);
 
     assert_eq!(

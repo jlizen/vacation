@@ -123,7 +123,8 @@ pub enum WhileWaitingMode {
 ///                 .offload_future(vacation::execute(
 ///                      // the work to offload
 ///                     || std::thread::sleep(std::time::Duration::from_millis(100)),
-///                     vacation::ChanceOfBlocking::High
+///                     vacation::ChanceOfBlocking::High,
+///                     "test.operation"
 ///                 ))
 ///                 // accepts the result of offloaded work, and returns an erorr
 ///                 // or an inner future
@@ -163,7 +164,8 @@ pub enum WhileWaitingMode {
 ///                     // it could be conditional, but here it's always returning work
 ///                     Ok(Some(Box::pin(vacation::execute(
 ///                         || std::thread::sleep(std::time::Duration::from_millis(50)),
-///                         vacation::ChanceOfBlocking::High
+///                         vacation::ChanceOfBlocking::High,
+///                         "test.operation"
 ///                     ))))
 ///                 })
 ///                 // called with the results of the offloaded work and the inner future,

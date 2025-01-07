@@ -32,7 +32,8 @@ mod test {
 
         // note that we also are racing against concurrency from other tests in this module
         for _ in 0..6 {
-            let future = async move { execute(closure, ChanceOfBlocking::High).await };
+            let future =
+                async move { execute(closure, ChanceOfBlocking::High, "test.operation").await };
             futures.push(future);
         }
 
