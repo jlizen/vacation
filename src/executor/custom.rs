@@ -2,8 +2,6 @@ use std::future::Future;
 
 use crate::{concurrency_limit::ConcurrencyLimit, error::Error};
 
-use super::Execute;
-
 /// The input for the custom closure
 pub type CustomClosureInput = Box<dyn FnOnce() + Send + 'static>;
 /// The output type for the custom closure
@@ -28,13 +26,11 @@ impl Custom {
             concurrency_limit: ConcurrencyLimit::new(max_concurrency),
         }
     }
-}
 
-impl Execute for Custom {
     // the compiler correctly is pointing out that the custom closure isn't guaranteed to call f.
     // but, we leave that to the implementer to guarantee since we are limited by working with static signatures
     #[allow(unused_variables)]
-    async fn execute<F, R>(&self, f: F) -> Result<R, Error>
+    pub(crate) async fn execute<F, R>(&self, f: F) -> Result<R, Error>
     where
         F: FnOnce() -> R + Send + 'static,
         R: Send + 'static,
