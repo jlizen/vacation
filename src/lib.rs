@@ -19,7 +19,7 @@ pub use executor::{
     global_strategy, ExecutorBuilder,
 };
 
-use executor::{get_global_executor, Execute, Executor, NeedsStrategy};
+use executor::{get_global_executor, Executor, NeedsStrategy};
 
 /// The currently loaded global strategy.
 #[derive(Debug, Clone, Copy, PartialEq)]

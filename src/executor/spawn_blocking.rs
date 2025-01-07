@@ -2,8 +2,6 @@ use tokio::runtime::Handle;
 
 use crate::{concurrency_limit::ConcurrencyLimit, error::Error};
 
-use super::Execute;
-
 pub(crate) struct SpawnBlocking {
     concurrency_limit: ConcurrencyLimit,
     handle: Handle,
@@ -18,10 +16,8 @@ impl SpawnBlocking {
             handle,
         }
     }
-}
 
-impl Execute for SpawnBlocking {
-    async fn execute<F, R>(&self, f: F) -> Result<R, Error>
+    pub(crate) async fn execute<F, R>(&self, f: F) -> Result<R, Error>
     where
         F: FnOnce() -> R + Send + 'static,
         R: Send + 'static,

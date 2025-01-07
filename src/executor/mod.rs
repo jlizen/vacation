@@ -10,14 +10,6 @@ use execute_directly::ExecuteDirectly;
 
 use crate::{Error, ExecutorStrategy, GlobalStrategy};
 
-pub(crate) trait Execute {
-    /// Accepts a sync function and processes it to completion.
-    async fn execute<F, R>(&self, f: F) -> Result<R, Error>
-    where
-        F: FnOnce() -> R + Send + 'static,
-        R: Send + 'static;
-}
-
 fn set_global_strategy(strategy: Executor) -> Result<(), Error> {
     GLOBAL_EXECUTOR_STRATEGY
         .set(strategy)
@@ -94,21 +86,6 @@ pub(crate) enum Executor {
     /// tokio task::spawn_blocking
     #[cfg(feature = "tokio")]
     SpawnBlocking(spawn_blocking::SpawnBlocking),
-}
-
-impl Execute for Executor {
-    async fn execute<F, R>(&self, f: F) -> Result<R, Error>
-    where
-        F: FnOnce() -> R + Send + 'static,
-        R: Send + 'static,
-    {
-        match self {
-            Executor::ExecuteDirectly(executor) => executor.execute(f).await,
-            Executor::Custom(executor) => executor.execute(f).await,
-            #[cfg(feature = "tokio")]
-            Executor::SpawnBlocking(executor) => executor.execute(f).await,
-        }
-    }
 }
 
 impl From<&Executor> for ExecutorStrategy {

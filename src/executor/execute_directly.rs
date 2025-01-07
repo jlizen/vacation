@@ -1,7 +1,5 @@
 use crate::{concurrency_limit::ConcurrencyLimit, error::Error};
 
-use super::Execute;
-
 pub(crate) struct ExecuteDirectly {
     concurrency_limit: ConcurrencyLimit,
 }
@@ -12,10 +10,8 @@ impl ExecuteDirectly {
             concurrency_limit: ConcurrencyLimit::new(max_concurrency),
         }
     }
-}
 
-impl Execute for ExecuteDirectly {
-    async fn execute<F, R>(&self, f: F) -> Result<R, Error>
+    pub(crate) async fn execute<F, R>(&self, f: F) -> Result<R, Error>
     where
         F: FnOnce() -> R + Send + 'static,
         R: Send + 'static,
