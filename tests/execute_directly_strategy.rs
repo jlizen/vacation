@@ -31,7 +31,10 @@ async fn execute_directly() {
     for _ in 0..6 {
         // we need to spawn tasks since otherwise we'll just block the current worker thread
         let future = async move {
-            tokio::task::spawn(async move { execute(closure, ChanceOfBlocking::High).await }).await
+            tokio::task::spawn(async move {
+                execute(closure, ChanceOfBlocking::High, "test.operation").await
+            })
+            .await
         };
         futures.push(future);
     }

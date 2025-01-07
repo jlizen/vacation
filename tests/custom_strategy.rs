@@ -13,9 +13,9 @@ static THREADPOOL: OnceLock<ThreadPool> = OnceLock::new();
 async fn custom_concurrency() {
     THREADPOOL.get_or_init(|| rayon::ThreadPoolBuilder::default().build().unwrap());
 
-    let custom_closure = |f: CustomClosureInput| {
+    let custom_closure = |input: CustomClosureInput| {
         Box::new(async move {
-            THREADPOOL.get().unwrap().spawn(f);
+            THREADPOOL.get().unwrap().spawn(input.work);
             Ok(())
         }) as CustomClosureOutput
     };
@@ -42,7 +42,7 @@ async fn custom_concurrency() {
 
     // note that we also are racing against concurrency from other tests in this module
     for _ in 0..6 {
-        futures.push(execute(closure, ChanceOfBlocking::High));
+        futures.push(execute(closure, ChanceOfBlocking::High, "test.operation"));
     }
 
     let res = join_all(futures).await;

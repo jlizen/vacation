@@ -8,7 +8,7 @@ use std::{future::Future, sync::OnceLock};
 use custom::{Custom, CustomClosure};
 use execute_directly::ExecuteDirectly;
 
-use crate::{Error, ExecutorStrategy, GlobalStrategy};
+use crate::{CustomClosureInput, Error, ExecutorStrategy, GlobalStrategy};
 
 fn set_global_strategy(strategy: Executor) -> Result<(), Error> {
     GLOBAL_EXECUTOR_STRATEGY
@@ -304,6 +304,13 @@ impl<Strategy> ExecutorBuilder<Strategy> {
     /// For instance, you could delegate to a [`Rayon threadpool`] or use Tokio's [`block_in_place`].
     /// See `tests/custom_executor_strategy.rs` for a `Rayon` example.
     ///
+    /// # Closure inputs
+    /// Along with a type-erased input function containing work, the [`CustomClosureInput`] contains:
+    /// - chance of blocking
+    /// - operation namespace
+    ///
+    /// This allows conditional logical such as different prioritization. You can discard
+    /// these inputs if you don't need them.
     ///
     /// # Examples
     ///
@@ -312,8 +319,8 @@ impl<Strategy> ExecutorBuilder<Strategy> {
     /// // caution: this will panic if used outside of tokio multithreaded runtime
     /// // this is a kind of dangerous strategy, read up on `block in place's` limitations
     /// // before using this approach
-    /// let closure = |f: vacation::CustomClosureInput| {
-    ///     Box::new(async move { Ok(tokio::task::block_in_place(move || f())) }) as vacation::CustomClosureOutput
+    /// let closure = |input: vacation::CustomClosureInput| {
+    ///     Box::new(async move { Ok(tokio::task::block_in_place(move || (input.work)())) }) as vacation::CustomClosureOutput
     /// };
     ///
     /// vacation::init().custom_executor(closure).install().unwrap();
@@ -327,7 +334,7 @@ impl<Strategy> ExecutorBuilder<Strategy> {
     pub fn custom_executor<Closure>(self, closure: Closure) -> ExecutorBuilder<HasStrategy>
     where
         Closure: Fn(
-                Box<dyn FnOnce() + Send + 'static>,
+                CustomClosureInput,
             ) -> Box<
                 dyn Future<Output = Result<(), Box<dyn std::error::Error + Send + Sync>>>
                     + Send

@@ -11,7 +11,9 @@ async fn default_to_execute_directly() {
         5
     };
 
-    let res = execute(closure, ChanceOfBlocking::High).await.unwrap();
+    let res = execute(closure, ChanceOfBlocking::High, "test.operation")
+        .await
+        .unwrap();
     assert_eq!(res, 5);
 
     assert_eq!(
@@ -20,7 +22,9 @@ async fn default_to_execute_directly() {
     );
 
     // make sure we can continue to call it without failures due to repeat initialization
-    let res = execute(closure, ChanceOfBlocking::High).await.unwrap();
+    let res = execute(closure, ChanceOfBlocking::High, "test.operation")
+        .await
+        .unwrap();
     assert_eq!(res, 5);
 
     assert_eq!(

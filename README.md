@@ -37,7 +37,7 @@ fn sync_work(input: String)-> u8 {
 pub async fn a_future_that_has_blocking_sync_work() -> u8 {
     // relies on application-specified strategy for translating execute into a future that won't
     // block the current worker thread
-    vacation::execute(move || { sync_work("foo".to_string()) }, vacation::ChanceOfBlocking::High).await.unwrap()
+    vacation::execute(move || { sync_work("foo".to_string()) }, vacation::ChanceOfBlocking::High, "example.operation").await.unwrap()
 }
 ```
 
@@ -81,7 +81,7 @@ async fn main() {
         // represents compute heavy work
         std::thread::sleep(std::time::Duration::from_millis(500));
         5
-    }, vacation::ChanceOfBlocking::High);
+    }, vacation::ChanceOfBlocking::High, "example.operation");
     
     assert_eq!(vacation_future.await.unwrap(), 5);
 #    }
@@ -125,8 +125,8 @@ static THREADPOOL: OnceLock<ThreadPool> = OnceLock::new();
 fn initialize_strategy() {
     THREADPOOL.set(rayon::ThreadPoolBuilder::default().build().unwrap());
 
-    let custom_closure = |f: vacation::CustomClosureInput| {
-        Box::new(async move { Ok(THREADPOOL.get().unwrap().spawn(f)) }) as vacation::CustomClosureOutput
+    let custom_closure = |input: vacation::CustomClosureInput| {
+        Box::new(async move { Ok(THREADPOOL.get().unwrap().spawn(input.work)) }) as vacation::CustomClosureOutput
     };
 
     vacation::init()

@@ -97,11 +97,13 @@ pub enum ChanceOfBlocking {
 
 /// Send a sync closure to the configured or default global compute-heavy executor, and wait on its output.
 ///
+/// Pass in the chance of blocking as well as namespace of your operation to allow more granular strategy configuration.
+///
 /// # Strategy selection
 ///
 /// If no strategy is configured, this library will fall back to a non-op `ExecuteDirectly` strategy.
 ///
-/// You can override these defaults by initializing a strategy via [`init()`]
+/// An application override these defaults by initializing a strategy via [`init()`]
 /// and [`ExecutorBuilder`].
 ///
 /// # Examples
@@ -113,13 +115,17 @@ pub enum ChanceOfBlocking {
 ///     5
 /// };
 ///
-/// let res = vacation::execute(closure, vacation::ChanceOfBlocking::High).await.unwrap();
+/// let res = vacation::execute(closure, vacation::ChanceOfBlocking::High, "example.operation").await.unwrap();
 /// assert_eq!(res, 5);
 /// # }
 ///
 /// ```
 ///
-pub async fn execute<F, R>(f: F, _chance_of_blocking: ChanceOfBlocking) -> Result<R, Error>
+pub async fn execute<F, R>(
+    f: F,
+    chance_of_blocking: ChanceOfBlocking,
+    namespace: &'static str,
+) -> Result<R, Error>
 where
     F: FnOnce() -> R + Send + 'static,
     R: Send + 'static,
@@ -129,7 +135,7 @@ where
 
     match executor {
         Executor::ExecuteDirectly(executor) => executor.execute(f).await,
-        Executor::Custom(executor) => executor.execute(f).await,
+        Executor::Custom(executor) => executor.execute(f, chance_of_blocking, namespace).await,
         #[cfg(feature = "tokio")]
         Executor::SpawnBlocking(executor) => executor.execute(f).await,
     }

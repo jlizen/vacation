@@ -29,6 +29,7 @@ mod test {
                             Ok(Some(Box::pin(vacation::execute(
                                 || std::thread::sleep(Duration::from_millis(20)),
                                 vacation::ChanceOfBlocking::High,
+                                "test.operation",
                             ))))
                         })
                         .incorporate_fn(|_, _| Ok(())),
@@ -59,6 +60,7 @@ mod test {
                         Ok(Some(Box::pin(vacation::execute(
                             || std::thread::sleep(Duration::from_millis(50)),
                             vacation::ChanceOfBlocking::High,
+                            "test.operation",
                         ))))
                     })
                     .incorporate_fn(|_, _: Result<(), vacation::Error>| Err(Err("foo"))),

@@ -44,7 +44,8 @@ pin_project! {
 ///                     // it could be conditional, but here it's always returning work
 ///                     Ok(Some(Box::pin(vacation::execute(
 ///                         || std::thread::sleep(std::time::Duration::from_millis(50)),
-///                         vacation::ChanceOfBlocking::High
+///                         vacation::ChanceOfBlocking::High,
+///                         "test.operation"
 ///                     ))))
 ///                 })
 ///                 // called with the results of the offloaded work and the inner future,
@@ -87,7 +88,8 @@ pub struct OffloadWithFuture<InnerFut, GetOffloadFn, OffloadResult, IncorporateF
 ///          // it could be conditional, but here it's always returning work
 ///          Ok(Some(Box::pin(vacation::execute(
 ///              || std::thread::sleep(std::time::Duration::from_millis(50)),
-///              vacation::ChanceOfBlocking::High
+///              vacation::ChanceOfBlocking::High,
+///              "test.operation"
 ///          ))))
 ///      })
 ///      .incorporate_fn(|_inner_fut: &mut InnerFut, res: Result<bool, vacation::Error>| {
@@ -136,7 +138,8 @@ impl FutureBuilder<NeedsStrategy, NeedsInnerFuture, NeedsOffload, NeedsWhileWait
     ///                     // it could be conditional, but here it's always returning work
     ///                     Ok(Some(Box::pin(vacation::execute(
     ///                         || std::thread::sleep(std::time::Duration::from_millis(50)),
-    ///                         vacation::ChanceOfBlocking::High
+    ///                         vacation::ChanceOfBlocking::High,
+    ///                         "test.operation"
     ///                     ))))
     ///                 })
     ///                 // called with the results of the offloaded work and the inner future,
@@ -210,7 +213,8 @@ impl<IncorporateFn> OffloadWith<NeedsGetOffloadFn, IncorporateFn> {
     ///          // it could be conditional, but here it's always returning work
     ///          Ok(Some(Box::pin(vacation::execute(
     ///              || std::thread::sleep(std::time::Duration::from_millis(50)),
-    ///              vacation::ChanceOfBlocking::High
+    ///              vacation::ChanceOfBlocking::High,
+    ///              "test.operation"
     ///          ))))
     ///      });
     /// # }
@@ -259,7 +263,8 @@ impl<GetOffloadFn> OffloadWith<GetOffloadFn, NeedsIncorporateFn> {
     ///          // it could be conditional, but here it's always returning work
     ///          Ok(Some(Box::pin(vacation::execute(
     ///              || std::thread::sleep(std::time::Duration::from_millis(50)),
-    ///              vacation::ChanceOfBlocking::High
+    ///              vacation::ChanceOfBlocking::High,
+    ///              "test.operation"
     ///          ))))
     ///      })
     ///      .incorporate_fn(|_inner_fut: &mut InnerFut, res: Result<bool, vacation::Error>| {
@@ -520,7 +525,7 @@ mod test {
                         Ok(())
                     };
 
-                    let offload_fut = crate::execute(closure, ChanceOfBlocking::High);
+                    let offload_fut = crate::execute(closure, ChanceOfBlocking::High, "test.operation");
 
                     Ok(Some(Box::pin(offload_fut)))
                 })
@@ -749,6 +754,7 @@ mod test {
                         Ok(Some(Box::pin(crate::execute(
                             || std::thread::sleep(Duration::from_millis(50)),
                             ChanceOfBlocking::High,
+                            "test.operation",
                         ))))
                     })
                     .incorporate_fn(|_: &mut TestFuture, _: Result<(), crate::Error>| {

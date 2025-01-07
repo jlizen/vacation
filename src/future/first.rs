@@ -27,7 +27,8 @@ pin_project! {
 ///                 .offload_future(vacation::execute(
 ///                      // the work to offload
 ///                     || std::thread::sleep(std::time::Duration::from_millis(100)),
-///                     vacation::ChanceOfBlocking::High
+///                     vacation::ChanceOfBlocking::High,
+///                     "test.operation"
 ///                 ))
 ///                 // accepts the result of offloaded work, and returns an erorr
 ///                 // or an inner future
@@ -113,7 +114,8 @@ impl OffloadFirst<NeedsOffloadFuture, NeedsIncorporateFn> {
     ///                 .offload_future(vacation::execute(
     ///                      // the work to offload
     ///                     || std::thread::sleep(std::time::Duration::from_millis(100)),
-    ///                     vacation::ChanceOfBlocking::High
+    ///                     vacation::ChanceOfBlocking::High,
+    ///                     "test.operation"
     ///                 ))
     ///                 // accepts the result of offloaded work, and returns an erorr
     ///                 // or an inner future
@@ -198,7 +200,8 @@ impl<Strategy, InnerFuture, WhileWaiting>
     ///                 .offload_future(vacation::execute(
     ///                      // the work to offload
     ///                     || std::thread::sleep(std::time::Duration::from_millis(100)),
-    ///                     vacation::ChanceOfBlocking::High
+    ///                     vacation::ChanceOfBlocking::High,
+    ///                     "test.operation"
     ///                 ))
     ///                 // accepts the result of offloaded work, and returns an erorr
     ///                 // or an inner future
@@ -345,7 +348,11 @@ mod test {
         let future = crate::future::builder()
             .offload_first(
                 OffloadFirst::builder()
-                    .offload_future(crate::execute(move || false, ChanceOfBlocking::High))
+                    .offload_future(crate::execute(
+                        move || false,
+                        ChanceOfBlocking::High,
+                        "test.operation",
+                    ))
                     .incorporate_fn(move |res| {
                         Ok(Box::pin(async move {
                             if res.unwrap() {
@@ -369,7 +376,11 @@ mod test {
         let future = crate::future::builder()
             .offload_first(
                 OffloadFirst::builder()
-                    .offload_future(crate::execute(move || true, ChanceOfBlocking::High))
+                    .offload_future(crate::execute(
+                        move || true,
+                        ChanceOfBlocking::High,
+                        "test.operation",
+                    ))
                     .incorporate_fn(move |res| {
                         Ok(Box::pin(async move {
                             if res.unwrap() {
@@ -391,7 +402,11 @@ mod test {
         let future = crate::future::builder()
             .offload_first(
                 OffloadFirst::builder()
-                    .offload_future(crate::execute(|| {}, ChanceOfBlocking::High))
+                    .offload_future(crate::execute(
+                        || {},
+                        ChanceOfBlocking::High,
+                        "test.operation",
+                    ))
                     .incorporate_fn(move |_res: Result<(), crate::Error>| {
                         Err(TestFutureResponse::VacationIncorporateError)
                     }),
