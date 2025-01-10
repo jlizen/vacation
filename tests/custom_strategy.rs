@@ -3,8 +3,8 @@ use std::{sync::OnceLock, time::Duration};
 use futures_util::future::join_all;
 use rayon::ThreadPool;
 use vacation::{
-    execute, init, ChanceOfBlocking, CustomClosureInput, CustomClosureOutput, ExecutorStrategy,
-    GlobalStrategy,
+    execute, init, ChanceOfBlocking, CustomClosureInput, CustomClosureOutput, ExecuteContext,
+    ExecutorStrategy, GlobalStrategy,
 };
 
 static THREADPOOL: OnceLock<ThreadPool> = OnceLock::new();
@@ -42,7 +42,13 @@ async fn custom_concurrency() {
 
     // note that we also are racing against concurrency from other tests in this module
     for _ in 0..6 {
-        futures.push(execute(closure, ChanceOfBlocking::High, "test.operation"));
+        futures.push(execute(
+            closure,
+            ExecuteContext {
+                chance_of_blocking: ChanceOfBlocking::High,
+                namespace: "test.operation",
+            },
+        ));
     }
 
     let res = join_all(futures).await;

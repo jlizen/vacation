@@ -37,7 +37,13 @@ fn sync_work(input: String)-> u8 {
 pub async fn a_future_that_has_blocking_sync_work() -> u8 {
     // relies on application-specified strategy for translating execute into a future that won't
     // block the current worker thread
-    vacation::execute(move || { sync_work("foo".to_string()) }, vacation::ChanceOfBlocking::High, "example.operation").await.unwrap()
+    vacation::execute(
+        move || { sync_work("foo".to_string()) },
+        vacation::ExecuteContext {
+            chance_of_blocking: vacation::ChanceOfBlocking::High, 
+            namespace: "example.operation"
+        }
+    ).await.unwrap()
 }
 ```
 
@@ -50,15 +56,16 @@ want to enable the `future` feature flag:
 vacation = { version = "0.1", features = ["future"] }
 ```
 
-This enables the [`future::FutureBuilder`] api along with the two types of `Vacation` futures it can generate:
-- [`future::OffloadFirst`] - delegate work to vacation, and then process the results into an inner future and poll the inner future to completion
-- [`future::OffloadWithFuture`] - poll the inner future, while also using a callback to retrieve any vacation work and polling it alongisde the inner future 
+This enables the [`future::FutureBuilder`] api which a generates [`future::OffloadWith`] wrapper future. On poll,
+this wrapper drives the inner future, while checking if there is work available to offload to vacation. If there is,
+it drives that work instead, deferring further polling of the inner future until the offloaded work is complete.
 
 ## Usage - Application owners
 Application authors will need to add this library as a a direct dependency in order to customize the execution strategy
 beyond the default no-op.
 
-Application authors can also call [`execute()`] if there are application-layer compute-heavy segments in futures.
+Application authors can also call [`execute()`] if there are application-layer compute-heavy segments in your futures that you
+want to delegate to vacation.
 
 ### Simple example
 
@@ -77,11 +84,17 @@ async fn main() {
     vacation::install_tokio_strategy().unwrap();
 
     // if wanting to delegate work to vacation:
-    let vacation_future = vacation::execute(|| {
-        // represents compute heavy work
-        std::thread::sleep(std::time::Duration::from_millis(500));
-        5
-    }, vacation::ChanceOfBlocking::High, "example.operation");
+    let vacation_future = vacation::execute(
+        || {
+            // represents compute heavy work
+            std::thread::sleep(std::time::Duration::from_millis(500));
+            5
+        },
+        vacation::ExecuteContext {
+            chance_of_blocking: vacation::ChanceOfBlocking::High, 
+            namespace: "example.operation"
+        }
+    );
     
     assert_eq!(vacation_future.await.unwrap(), 5);
 #    }

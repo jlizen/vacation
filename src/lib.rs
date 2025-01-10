@@ -8,7 +8,6 @@ mod concurrency_limit;
 mod error;
 mod executor;
 #[cfg(feature = "future")]
-/// Vacation future implementations for libraries that are manually implementing futures
 pub mod future;
 
 pub use error::Error;
@@ -87,8 +86,19 @@ pub fn init() -> ExecutorBuilder<NeedsStrategy> {
     }
 }
 
+/// A context object to be passed into [`execute()`] containing
+/// metadata that allows the caller to fine tune strategies
+#[derive(Debug, Clone, Copy)]
+pub struct ExecuteContext {
+    /// The chance of blocking a future for a significant amount of time with this work
+    pub chance_of_blocking: ChanceOfBlocking,
+    /// A namespace for this operation
+    pub namespace: &'static str,
+}
+
 /// Likelihood of the provided closure blocking for a significant period of time.
 /// Will eventually be used to customize strategies with more granularity.
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy)]
 pub enum ChanceOfBlocking {
     /// Very likely to block, use primary sync strategy
@@ -115,17 +125,19 @@ pub enum ChanceOfBlocking {
 ///     5
 /// };
 ///
-/// let res = vacation::execute(closure, vacation::ChanceOfBlocking::High, "example.operation").await.unwrap();
+/// let res = vacation::execute(
+///     closure,
+///     vacation::ExecuteContext {
+///         chance_of_blocking: vacation::ChanceOfBlocking::High,
+///         namespace: "example.operation"
+///     }
+/// ).await.unwrap();
 /// assert_eq!(res, 5);
 /// # }
 ///
 /// ```
 ///
-pub async fn execute<F, R>(
-    f: F,
-    chance_of_blocking: ChanceOfBlocking,
-    namespace: &'static str,
-) -> Result<R, Error>
+pub async fn execute<F, R>(f: F, context: ExecuteContext) -> Result<R, Error>
 where
     F: FnOnce() -> R + Send + 'static,
     R: Send + 'static,
@@ -135,7 +147,7 @@ where
 
     match executor {
         Executor::ExecuteDirectly(executor) => executor.execute(f).await,
-        Executor::Custom(executor) => executor.execute(f, chance_of_blocking, namespace).await,
+        Executor::Custom(executor) => executor.execute(f, context).await,
         #[cfg(feature = "tokio")]
         Executor::SpawnBlocking(executor) => executor.execute(f).await,
     }
