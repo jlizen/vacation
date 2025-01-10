@@ -2,7 +2,7 @@ use std::time::Duration;
 
 use vacation::{
     execute, global_strategy, init, ChanceOfBlocking, CustomClosureInput, CustomClosureOutput,
-    ExecutorStrategy, GlobalStrategy,
+    ExecuteContext, ExecutorStrategy, GlobalStrategy,
 };
 
 #[tokio::test]
@@ -21,9 +21,15 @@ async fn custom_simple() {
         5
     };
 
-    let res = execute(closure, ChanceOfBlocking::High, "test.operation")
-        .await
-        .unwrap();
+    let res = execute(
+        closure,
+        ExecuteContext {
+            chance_of_blocking: ChanceOfBlocking::High,
+            namespace: "test.operation",
+        },
+    )
+    .await
+    .unwrap();
     assert_eq!(res, 5);
 
     assert_eq!(

@@ -1,22 +1,19 @@
 use std::future::Future;
 
-use crate::{concurrency_limit::ConcurrencyLimit, error::Error, ChanceOfBlocking};
+use crate::{concurrency_limit::ConcurrencyLimit, error::Error, ExecuteContext};
 
 /// The input for the custom closure
 pub struct CustomClosureInput {
     /// the actual work to execute, your custom closure must run this
     pub work: Box<dyn FnOnce() + Send + 'static>,
-    /// caller-specified likehood of blocking, for customizing strategies
-    pub chance_of_blocking: ChanceOfBlocking,
-    /// caller-specified operatino namespace, for customizing strategies
-    pub namespace: &'static str,
+    /// caller-specified metadata that allows fine tuning strategies
+    pub context: ExecuteContext,
 }
 
 impl std::fmt::Debug for CustomClosureInput {
     fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
         f.debug_struct("CustomClosureInput")
-            .field("chance_of_blocking", &self.chance_of_blocking)
-            .field("namespace", &self.namespace)
+            .field("context", &self.context)
             .finish()
     }
 }
@@ -49,12 +46,7 @@ impl Custom {
     // the compiler correctly is pointing out that the custom closure isn't guaranteed to call f.
     // but, we leave that to the implementer to guarantee since we are limited by working with static signatures
     #[allow(unused_variables)]
-    pub(crate) async fn execute<F, R>(
-        &self,
-        f: F,
-        chance_of_blocking: ChanceOfBlocking,
-        namespace: &'static str,
-    ) -> Result<R, Error>
+    pub(crate) async fn execute<F, R>(&self, f: F, context: ExecuteContext) -> Result<R, Error>
     where
         F: FnOnce() -> R + Send + 'static,
         R: Send + 'static,
@@ -74,8 +66,7 @@ impl Custom {
 
         let input = CustomClosureInput {
             work: wrapped_input_closure,
-            chance_of_blocking,
-            namespace,
+            context,
         };
 
         Box::into_pin((self.closure)(input))
