@@ -33,10 +33,7 @@ mod test {
                         async move {
                             match vacation::execute(
                                 || std::thread::sleep(Duration::from_millis(20)),
-                                vacation::ExecuteContext {
-                                    chance_of_blocking: vacation::ChanceOfBlocking::High,
-                                    namespace: "test.operation",
-                                },
+                                vacation::ExecuteContext::new(vacation::ChanceOfBlocking::Frequent),
                             )
                             .await
                             {
@@ -76,10 +73,7 @@ mod test {
                     async move {
                         match vacation::execute(
                             || std::thread::sleep(Duration::from_millis(50)),
-                            vacation::ExecuteContext {
-                                chance_of_blocking: vacation::ChanceOfBlocking::High,
-                                namespace: "test.operation",
-                            },
+                            vacation::ExecuteContext::new(vacation::ChanceOfBlocking::Frequent),
                         )
                         .await
                         {

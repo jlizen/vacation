@@ -1,101 +1,96 @@
-//! # Future module
-//! 
+//! # Utilities for Composing Futures
+//!
 //! This module provides a lower-level wrapper for manually implemented futures. It is intended for library
-//! authors that already have a hand-implemented future, that needs to delegate work.
-//! 
+//! authors that already have a hand-implemented future, that needs to offload compute-heavy work to vacation.
+//!
 //! Such a use case cannot simply call [`vacation::execute(_)`] and await the returned future
-//! because they are already in a sync context. Instead, the vacation future needs to be driven 
+//! because they are already in a sync context. Instead, the offloaded work needs to be driven
 //! across the individual polls within the custom future's current await handling.
-//! 
+//!
 //! The entrypoint for this api is [`vacation::future::builder()`], which allows constructing an [`OffloadWith`]
 //! to wrap your custom inner future.
-//! 
+//!
 //! This wrapper future processes occasional work offloaded from the inner future, while driving the inner
 //! future if no offloaded work is active. Offloaded work is retrieved via a 'pull' model, where,
 //! after the inner future returns `Poll::Pending`, a [`get_offload()`] closure is called that has
-//! owned access to the inner future. That closure can return any work that needs to be offloaded, 
+//! owned access to the inner future. That closure can return any work that needs to be offloaded,
 //! structured as an async future that invokes `vacation::execute()` and processes any results.
-//! 
+//!
 //! **Note that `OffloadWith` does NOT poll the inner future while offloaded work is active, so there is a deadlock
 //! risk if the offloaded work depends on the inner future making progress to resolve.**
-//! 
+//!
 //! ## Q&A
-//! 
+//!
 //! ### This seems complicated, why not just call vacation from inside my custom future?
 //! There are many ways to structure a custom future to efficiently use `vacation`. This is designed
-//! to be more of a 'bolt on' utility that requires minimal code changes inside your inner future - 
-//! mostly just adding a hook with which to get work. 
-//! 
+//! to be more of a 'bolt on' utility that requires minimal code changes inside your inner future -
+//! mostly just adding a hook with which to get work.
+//!
 //! If you are writing a custom future with `vacation` in mind, it probably is simplest to store the state
-//! of any offloaded vacation work directly in your future, and poll it as part of your `Future` implementation.
+//! of any offloaded work directly in your future, and poll it as part of your `Future` implementation.
 //! That way you can simply initialize that work whenever you reach a point that needs it, poll it once, and either
 //! return `Poll::Pending` (if you need to wait on that work completing) or carry on (if you can make other progress
 //! while the offloaded work is ongoing).
-//! 
+//!
 //! ### I only need to send work to vacation once, in order to construct my inner future. What should I do?
-//! 
 //! This can be handled very simply with [`futures_util::then()`]. Simply call `vacation::execute()` first,
 //! and then chain `then()` to construct the inner future.
-//! 
+//!
 //! Here is an example:
-//! 
+//!
 //! ```
 //! use futures_util::FutureExt;
-//! 
+//!
 //! let vacation_future = vacation::execute(
 //!     || {
+//!         // stand-in for compute-heavy work
 //!         std::thread::sleep(std::time::Duration::from_millis(50));
 //!         5
 //!     },
-//!     vacation::ExecuteContext {
-//!         chance_of_blocking: vacation::ChanceOfBlocking::High,
-//!         namespace: "sample_initialize",
-//!     }
+//!     vacation::ExecuteContext::new(vacation::ChanceOfBlocking::Frequent)
 //! );
-//! 
+//!
 //! let future = vacation_future.then(|res| async move {
 //!     match res {
 //!         Err(error) => Err("there was a vacation error"),
-//!         // placeholder for your custom future
+//!         // stand-in for your custom future
 //!         Ok(res) => Ok(tokio::time::sleep(std::time::Duration::from_millis(res)).await),
 //!     }
 //! });
-//! 
+//!
 //! ```
-//! 
+//!
 //! ### This seems suspicious, what if the inner future has a waker fire while it is being suppressed
 //! due to ongoing offloaded work?
-//! 
 //! We defensively poll the inner future anytime the offloaded work completes. This means that if any
-//! waker had fired while that work was ongoing, the inner future will be polled again.
-//! 
+//! waker had fired while that offloaded work was ongoing, the inner future will definitely be polled again.
+//!
 //! Essentially, our guarantee is, every time the wrapper future is polled, either the inner future is polled
-//! directly (if no offloaded work), it is polled after vacation work (if vacation work is completing),
-//! or there is at minimum a vacation waker registered - which, again, will result in the inner future
+//! directly (if no offloaded work), it is immediately polled after offloaded work (if offloaded work just completed),
+//! or there is at minimum a waker registered for the offloaded work- which, again, will result in the inner future
 //! being polled when that work completes.
-//! 
+//!
 //! This results in potentially redundant polls, but no lost polls.
-//! 
+//!
 //! ### Why do I need an owned inner future in my `get_offload()` closure? It seems cumbersome.
 //! A couple reasons:
-//! 
-//! First, this allows the API to accept just a single closure, which can both delegate work to vacation,
+//!
+//! First, this allows the API to accept just a single closure, which can both offload work to vacation,
 //! which might need to be sent across threads, and then post-process the work with mutable access
 //! to the inner future. We can't simply pass in a &mut reference because this library targets
 //! pre-async-closure Rust versions, so it would insist that the inner future reference have a 'static lifetime,
-//! which it doesn't. You could instead split into two closures, one of which generates the offloaded work, and the
-//! second of which post-processes by taking as inputs the offloaded work output and `&mut inner_future`. However,
-//! this was pretty unwieldy.
-//! 
+//! which it doesn't.
+//!
 //! Second, this makes it simpler to model the case where the offloaded work needs some state from the inner future
 //! that the inner future can't operate without. If it wasn't owned, the inner future would need to add a new variant
 //! to its internal state, which represents the case where it is missing state, and then panic or return `Poll::Pending`
 //! if it is polled while in that state.
-//! 
+//!
 //! If you have a use case that wants to continue polling the inner future, while also driving any offloaded work
 //! (or multiple pieces of offloaded work), please cut a GitHub issue! Certainly we can add this functionality in
-//! if consumers would use it.
-//! 
+//! if consumers would use it. It just would be a bit more complicated API, so we're trying to avoid adding complexity
+//! if it wouldn't be used.
+//!
 //! [`futures_util::then()`]: https://docs.rs/futures-util/latest/futures_util/future/trait.FutureExt.html#method.then
 //! [`vacation::future::builder()`]: crate::future::builder()
 //! [`get_offload()`]: crate::future::FutureBuilder::get_offload()
@@ -103,7 +98,7 @@
 use std::{
     future::Future,
     pin::Pin,
-    task::{Context, Poll},
+    task::{ready, Context, Poll},
 };
 
 use pin_project_lite::pin_project;
@@ -189,10 +184,7 @@ pin_project! {
 ///                 // and processes any results (if post-processing is needed)
 ///                 Some(work) => Ok(vacation::future::OffloadWork::HasWork(
 ///                     Box::new(async move {
-///                         match vacation::execute(work, vacation::ExecuteContext {
-///                             chance_of_blocking: vacation::ChanceOfBlocking::High,
-///                             namespace: "sample-future"
-///                         }).await {
+///                         match vacation::execute(work, vacation::ExecuteContext::new(vacation::ChanceOfBlocking::Frequent)).await {
 ///                             Ok(work_res) => {
 ///                                 match work_res {
 ///                                     Ok(work_output) => {
@@ -361,10 +353,7 @@ impl<GetOffload> std::fmt::Debug for HasGetOffload<GetOffload> {
 ///                 // and processes any results (if post-processing is needed)
 ///                 Some(work) => Ok(vacation::future::OffloadWork::HasWork(
 ///                     Box::new(async move {
-///                         match vacation::execute(work, vacation::ExecuteContext {
-///                             chance_of_blocking: vacation::ChanceOfBlocking::High,
-///                             namespace: "sample-future"
-///                         }).await {
+///                         match vacation::execute(work, vacation::ExecuteContext::new(vacation::ChanceOfBlocking::Frequent)).await {
 ///                             Ok(work_res) => {
 ///                                 match work_res {
 ///                                     Ok(work_output) => {
@@ -511,10 +500,7 @@ impl<InnerFut: Future> FutureBuilder<HasInnerFuture<InnerFut>, NeedsGetOffload> 
     ///                 // and processes any results (if post-processing is needed)
     ///                 Some(work) => Ok(vacation::future::OffloadWork::HasWork(
     ///                     Box::new(async move {
-    ///                         match vacation::execute(work, vacation::ExecuteContext {
-    ///                             chance_of_blocking: vacation::ChanceOfBlocking::High,
-    ///                             namespace: "sample-future"
-    ///                         }).await {
+    ///                         match vacation::execute(work, vacation::ExecuteContext::new(vacation::ChanceOfBlocking::Frequent)).await {
     ///                             Ok(work_res) => {
     ///                                 match work_res {
     ///                                     Ok(work_output) => {
@@ -564,6 +550,44 @@ impl<InnerFut: Future, GetOffload>
     }
 }
 
+impl<InnerFut: Future, GetOffload> OffloadWith<InnerFut, GetOffload> {
+    /// Polls any offloaded work that is present and return any error.
+    /// If work completes successfully, also poll the inner future and update inner state.
+    fn poll_offload_and_then_inner(
+        mut self: Pin<&mut Self>,
+        cx: &mut Context<'_>,
+    ) -> Poll<InnerFut::Output>
+    where
+        InnerFut: Future + Unpin,
+    {
+        if let OffloadWithInner::OffloadActive(ref mut offload_future) = self.as_mut().inner {
+            let offload_res = ready!(offload_future.as_mut().poll(cx));
+            match offload_res {
+                Ok(inner_fut) => {
+                    self.inner = OffloadWithInner::InnerFut(inner_fut);
+                    self.poll_inner(cx)
+                }
+                Err(err) => Poll::Ready(err),
+            }
+        } else {
+            Poll::Pending
+        }
+    }
+
+    /// Poll any inner future that is present
+    fn poll_inner(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<InnerFut::Output>
+    where
+        InnerFut: Future + Unpin,
+    {
+        let this = self.project();
+        if let OffloadWithInner::InnerFut(inner_fut) = this.inner {
+            Pin::new(inner_fut).as_mut().poll(cx)
+        } else {
+            Poll::Pending
+        }
+    }
+}
+
 impl<InnerFut, GetOffload> Future for OffloadWith<InnerFut, GetOffload>
 where
     InnerFut: Future + Unpin,
@@ -571,78 +595,60 @@ where
 {
     type Output = InnerFut::Output;
 
-    fn poll(self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
-        let this = self.get_mut();
-
-        // first poll the inner future or any outstanding work
-        let inner_fut = match std::mem::replace(&mut this.inner, OffloadWithInner::UpdatingState) {
+    // Flow:
+    //
+    // First, drive the stored future, one of:
+    // a) - Poll inner future
+    // b) - Poll offload work -> if done, poll inner future
+    //
+    // Then:
+    // 1. See if we have offload work active
+    // 2. If yes, we are done, return Poll::Pending
+    // 2. If no, split apart inner to get owned inner future
+    // 3. Send inner future into get_offload() closure
+    // 4. Put inner back together with returned offload work or inner future
+    // 5. Poll any new offload work (and inner future, if offload compltes)
+    //
+    // Poll::Ready(..) from the inner future, or Poll::Ready(Err<>) from any
+    // offload work handling, will return Poll::Ready. Else Poll::Pending.
+    fn poll(mut self: Pin<&mut Self>, cx: &mut Context<'_>) -> Poll<Self::Output> {
+        // drive our stored future, inner or offloaded work
+        if let Poll::Ready(inner_res) = match self.inner {
+            OffloadWithInner::InnerFut(_) => self.as_mut().poll_inner(cx),
+            OffloadWithInner::OffloadActive(_) => self.as_mut().poll_offload_and_then_inner(cx),
             OffloadWithInner::UpdatingState => {
-                panic!("unexpected state while polling get_offload with future")
+                // we only set this state in the subsequent block, where we unconditionally set a different
+                // state or return Poll::Ready
+                unreachable!("unexpected state while polling OffloadWith")
             }
-            OffloadWithInner::InnerFut(mut inner_fut) => match Pin::new(&mut inner_fut).poll(cx) {
-                Poll::Ready(res) => return Poll::Ready(res),
-                Poll::Pending => inner_fut,
-            },
-            OffloadWithInner::OffloadActive(mut offload_fut) => {
-                let mut inner_fut = match offload_fut.as_mut().poll(cx) {
-                    // get_offload work still ongoing, reconstruct state and bail
-                    Poll::Pending => {
-                        this.inner = OffloadWithInner::OffloadActive(offload_fut);
-                        return Poll::Pending;
-                    }
-                    // get_offload work complete
-                    Poll::Ready(offload_res) => match offload_res {
-                        Ok(inner_fut) => inner_fut,
-                        // bubble up error in get_offload
-                        Err(res) => return Poll::Ready(res),
-                    },
-                };
-                // if get_offload future is done and successful,
-                // poll our inner future again in case it didn't set wakers since it was relying on
-                // vacation work completing
-                match Pin::new(&mut inner_fut).poll(cx) {
-                    Poll::Ready(res) => return Poll::Ready(res),
-                    Poll::Pending => inner_fut,
-                }
-            }
-        };
+        } {
+            return Poll::Ready(inner_res);
+        }
 
-        match (this.get_offload)(inner_fut) {
-            Ok(get_offload_res) => match get_offload_res {
-                OffloadWork::HasWork(get_offload) => {
-                    let mut get_offload = Box::into_pin(get_offload);
-                    // poll get_offload work once to kick it off
-                    match get_offload.as_mut().poll(cx) {
-                        // get_offload work didn't actually need to sleep
-                        Poll::Ready(offload_res) => match offload_res {
-                            // successfully completed get_offload work, poll our inner future
-                            // again in case it didn't set wakers since it was relying on
-                            // vacation work completing
-                            Ok(mut inner_fut) => match Pin::new(&mut inner_fut).poll(cx) {
-                                Poll::Ready(res) => Poll::Ready(res),
-                                Poll::Pending => {
-                                    this.inner = OffloadWithInner::InnerFut(inner_fut);
-                                    Poll::Pending
-                                }
-                            },
-                            // get_offload work failed, bubble up any error
-                            Err(err) => Poll::Ready(err),
-                        },
-                        // get_offload work still ongoing, store in state
-                        Poll::Pending => {
-                            this.inner = OffloadWithInner::OffloadActive(get_offload);
+        // if we don't already have offloaded work, see if there is new work.
+        if matches!(self.inner, OffloadWithInner::InnerFut(_)) {
+            match std::mem::replace(&mut self.inner, OffloadWithInner::UpdatingState) {
+                OffloadWithInner::InnerFut(inner_fut) => match (self.get_offload)(inner_fut) {
+                    Ok(offload_work) => match offload_work {
+                        OffloadWork::HasWork(work) => {
+                            self.inner = OffloadWithInner::OffloadActive(Box::into_pin(work));
+                            self.poll_offload_and_then_inner(cx)
+                        }
+                        OffloadWork::NoWork(inner_fut) => {
+                            self.inner = OffloadWithInner::InnerFut(inner_fut);
                             Poll::Pending
                         }
-                    }
+                    },
+                    Err(err) => Poll::Ready(err),
+                },
+                _ => {
+                    // we match to confirm we have an inner future immediately above
+                    unreachable!("unexpected state while polling OffloadWith")
                 }
-                // get get_offload work didn't return any work, reconstruct inner future state
-                OffloadWork::NoWork(inner_fut) => {
-                    this.inner = OffloadWithInner::InnerFut(inner_fut);
-                    Poll::Pending
-                }
-            },
-            // bubble up error while getting get_offload work
-            Err(err) => Poll::Ready(err),
+            }
+        } else {
+            // we already have offload work active, don't look for more
+            Poll::Pending
         }
     }
 }
@@ -772,10 +778,7 @@ mod test {
                                     Ok(())
                                 }
                             },
-                            crate::ExecuteContext {
-                                chance_of_blocking: crate::ChanceOfBlocking::High,
-                                namespace: "test.operation",
-                            },
+                            crate::ExecuteContext::new(crate::ChanceOfBlocking::Frequent),
                         )
                         .await
                         {

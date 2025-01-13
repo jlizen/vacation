@@ -39,10 +39,7 @@ pub async fn a_future_that_has_blocking_sync_work() -> u8 {
     // block the current worker thread
     vacation::execute(
         move || { sync_work("foo".to_string()) },
-        vacation::ExecuteContext {
-            chance_of_blocking: vacation::ChanceOfBlocking::High, 
-            namespace: "example.operation"
-        }
+        vacation::ExecuteContext::new(vacation::ChanceOfBlocking::Frequent)
     ).await.unwrap()
 }
 ```
@@ -90,10 +87,7 @@ async fn main() {
             std::thread::sleep(std::time::Duration::from_millis(500));
             5
         },
-        vacation::ExecuteContext {
-            chance_of_blocking: vacation::ChanceOfBlocking::High, 
-            namespace: "example.operation"
-        }
+        vacation::ExecuteContext::new(vacation::ChanceOfBlocking::Frequent)
     );
     
     assert_eq!(vacation_future.await.unwrap(), 5);

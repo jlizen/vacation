@@ -21,15 +21,9 @@ async fn custom_simple() {
         5
     };
 
-    let res = execute(
-        closure,
-        ExecuteContext {
-            chance_of_blocking: ChanceOfBlocking::High,
-            namespace: "test.operation",
-        },
-    )
-    .await
-    .unwrap();
+    let res = execute(closure, ExecuteContext::new(ChanceOfBlocking::Frequent))
+        .await
+        .unwrap();
     assert_eq!(res, 5);
 
     assert_eq!(
