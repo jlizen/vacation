@@ -44,10 +44,7 @@ async fn custom_concurrency() {
     for _ in 0..6 {
         futures.push(execute(
             closure,
-            ExecuteContext {
-                chance_of_blocking: ChanceOfBlocking::High,
-                namespace: "test.operation",
-            },
+            ExecuteContext::new(ChanceOfBlocking::Frequent),
         ));
     }
 

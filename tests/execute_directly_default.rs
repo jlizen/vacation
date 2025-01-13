@@ -13,15 +13,9 @@ async fn default_to_execute_directly() {
         5
     };
 
-    let res = execute(
-        closure,
-        ExecuteContext {
-            chance_of_blocking: ChanceOfBlocking::High,
-            namespace: "test.operation",
-        },
-    )
-    .await
-    .unwrap();
+    let res = execute(closure, ExecuteContext::new(ChanceOfBlocking::Frequent))
+        .await
+        .unwrap();
     assert_eq!(res, 5);
 
     assert_eq!(
@@ -30,15 +24,9 @@ async fn default_to_execute_directly() {
     );
 
     // make sure we can continue to call it without failures due to repeat initialization
-    let res = execute(
-        closure,
-        ExecuteContext {
-            chance_of_blocking: ChanceOfBlocking::High,
-            namespace: "test.operation",
-        },
-    )
-    .await
-    .unwrap();
+    let res = execute(closure, ExecuteContext::new(ChanceOfBlocking::Frequent))
+        .await
+        .unwrap();
     assert_eq!(res, 5);
 
     assert_eq!(

@@ -2,7 +2,8 @@ use std::time::Duration;
 
 use futures_util::future::join_all;
 use vacation::{
-    execute, global_strategy, init, ChanceOfBlocking, ExecutorStrategy, GlobalStrategy,
+    execute, global_strategy, init, ChanceOfBlocking, ExecuteContext, ExecutorStrategy,
+    GlobalStrategy,
 };
 
 #[tokio::test(flavor = "multi_thread", worker_threads = 4)]
@@ -32,14 +33,7 @@ async fn execute_directly() {
         // we need to spawn tasks since otherwise we'll just block the current worker thread
         let future = async move {
             tokio::task::spawn(async move {
-                execute(
-                    closure,
-                    vacation::ExecuteContext {
-                        chance_of_blocking: ChanceOfBlocking::High,
-                        namespace: "test.operation",
-                    },
-                )
-                .await
+                execute(closure, ExecuteContext::new(ChanceOfBlocking::Frequent)).await
             })
             .await
         };

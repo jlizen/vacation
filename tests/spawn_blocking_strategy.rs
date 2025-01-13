@@ -4,9 +4,7 @@ mod test {
 
     use futures_util::future::join_all;
 
-    use vacation::{
-        execute, global_strategy, init, ChanceOfBlocking, ExecutorStrategy, GlobalStrategy,
-    };
+    use vacation::{execute, global_strategy, init, ExecutorStrategy, GlobalStrategy};
 
     #[tokio::test]
     async fn spawn_blocking() {
@@ -35,10 +33,7 @@ mod test {
             let future = async move {
                 execute(
                     closure,
-                    vacation::ExecuteContext {
-                        chance_of_blocking: ChanceOfBlocking::High,
-                        namespace: "test.operation",
-                    },
+                    vacation::ExecuteContext::new(vacation::ChanceOfBlocking::Frequent),
                 )
                 .await
             };

@@ -88,21 +88,32 @@ pub fn init() -> ExecutorBuilder<NeedsStrategy> {
 
 /// A context object to be passed into [`execute()`] containing
 /// metadata that allows the caller to fine tune strategies
+#[non_exhaustive]
 #[derive(Debug, Clone, Copy)]
 pub struct ExecuteContext {
     /// The chance of blocking a future for a significant amount of time with this work
     pub chance_of_blocking: ChanceOfBlocking,
-    /// A namespace for this operation
-    pub namespace: &'static str,
 }
 
-/// Likelihood of the provided closure blocking for a significant period of time.
+impl ExecuteContext {
+    /// Create a new execute context, to use with [`execute()`], with
+    /// a given chance of blocking
+    pub fn new(chance_of_blocking: ChanceOfBlocking) -> Self {
+        Self { chance_of_blocking }
+    }
+}
+
+/// Likelihood of the provided closure blocking for a significant period of time (~50μs+).
 /// Will eventually be used to customize strategies with more granularity.
 #[non_exhaustive]
 #[derive(Debug, Clone, Copy)]
 pub enum ChanceOfBlocking {
-    /// Very likely to block, use primary sync strategy
-    High,
+    /// Very likely to block for significant amount of time(~50μs+), use primary strategy
+    Frequent,
+    /// Blocks some of the time for ~50μs+ but not always,
+    /// potentially use an optimistic strategy that doesn't
+    /// send across threads
+    Occasional,
 }
 
 /// Send a sync closure to the configured or default global compute-heavy executor, and wait on its output.
@@ -127,11 +138,7 @@ pub enum ChanceOfBlocking {
 ///
 /// let res = vacation::execute(
 ///     closure,
-///     vacation::ExecuteContext {
-///         chance_of_blocking: vacation::ChanceOfBlocking::High,
-///         namespace: "example.operation"
-///     }
-/// ).await.unwrap();
+///     vacation::ExecuteContext::new(vacation::ChanceOfBlocking::Frequent)).await.unwrap();
 /// assert_eq!(res, 5);
 /// # }
 ///
